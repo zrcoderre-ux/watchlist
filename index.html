@@ -1,0 +1,2678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F6F8FC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Watchlist">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Watchlist</title>
+<!-- Google Sans, loaded without blocking first paint. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://image.tmdb.org">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+<style>
+/* ── Reset & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Material 3 colour roles, in the tones Google's own apps use. Components read
+   these roles, never raw hex, so the dark block below is the only other place
+   a colour needs to change. */
+:root {
+  color-scheme: light;
+  --primary: #0B57D0;
+  --on-primary: #FFFFFF;
+  --primary-container: #D3E3FD;
+  --on-primary-container: #041E49;
+  --secondary-container: #C2E7FF;
+  --on-secondary-container: #001D35;
+  --success: #146C2E;
+  --on-success: #FFFFFF;
+  --success-container: #C4EED0;
+  --on-success-container: #072711;
+  --error: #B3261E;
+  --on-error: #FFFFFF;
+  --error-container: #F9DEDC;
+  --on-error-container: #410E0B;
+  --warning: #8B5000;
+  --warning-container: #FFDDB3;
+  --on-warning-container: #2C1600;
+  --tertiary-container: #FFD8F1;     /* Claude's picks */
+  --on-tertiary-container: #3A0B2E;
+
+  --bg: #F6F8FC;
+  --surface: #FFFFFF;
+  --surface-container: #F0F4F9;
+  --surface-high: #E9EEF6;
+  --surface-highest: #DDE3EA;
+  --on-surface: #1F1F1F;
+  --on-surface-variant: #444746;
+  --outline: #747775;
+  --outline-variant: #C4C7C5;
+  --inverse-surface: #303030;
+  --inverse-on-surface: #F2F2F2;
+  --inverse-primary: #A8C7FA;
+  --scrim: rgba(0, 0, 0, 0.32);
+
+  /* Over a poster: always light text on a dark wash, in both schemes. */
+  --on-poster: #FFFFFF;
+  --on-poster-variant: rgba(255, 255, 255, 0.82);
+  --poster-wash: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.72) 34%, rgba(0,0,0,0) 62%);
+  --poster-chip: rgba(255, 255, 255, 0.18);
+
+  --hover-layer: color-mix(in srgb, currentColor 8%, transparent);
+  --press-layer: color-mix(in srgb, currentColor 12%, transparent);
+
+  --elev-1: 0 1px 2px 0 rgba(60, 64, 67, 0.30), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --elev-2: 0 1px 2px 0 rgba(60, 64, 67, 0.30), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  --elev-3: 0 4px 8px 3px rgba(60, 64, 67, 0.15), 0 1px 3px rgba(60, 64, 67, 0.30);
+
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960' fill='%23444746'%3E%3Cpath d='M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z'/%3E%3C/svg%3E");
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 28px;
+  --nav-h: 72px;
+  --header-h: 64px;
+  --rail-w: 80px;
+  --read-w: 600px;
+  --sans: 'Google Sans', 'Google Sans Text', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --primary: #A8C7FA;
+    --on-primary: #062E6F;
+    --primary-container: #0842A0;
+    --on-primary-container: #D3E3FD;
+    --secondary-container: #004A77;
+    --on-secondary-container: #C2E7FF;
+    --success: #6DD58C;
+    --on-success: #00391A;
+    --success-container: #0F5223;
+    --on-success-container: #C4EED0;
+    --error: #F2B8B5;
+    --on-error: #601410;
+    --error-container: #8C1D18;
+    --on-error-container: #F9DEDC;
+    --warning: #FFB95C;
+    --warning-container: #6A3C00;
+    --on-warning-container: #FFDDB3;
+    --tertiary-container: #5C2B50;
+    --on-tertiary-container: #FFD8F1;
+
+    --bg: #131314;
+    --surface: #1E1F20;
+    --surface-container: #1E1F20;
+    --surface-high: #282A2C;
+    --surface-highest: #333537;
+    --on-surface: #E3E3E3;
+    --on-surface-variant: #C4C7C5;
+    --outline: #8E918F;
+    --outline-variant: #444746;
+    --inverse-surface: #E3E3E3;
+    --inverse-on-surface: #303030;
+    --inverse-primary: #0B57D0;
+    --scrim: rgba(0, 0, 0, 0.6);
+
+    --elev-1: 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+    --elev-2: 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+    --elev-3: 0 4px 8px 3px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.30);
+
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960' fill='%23C4C7C5'%3E%3Cpath d='M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z'/%3E%3C/svg%3E");
+  }
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 20px;
+  background: var(--bg);
+  color: var(--on-surface);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+body { position: fixed; inset: 0; }
+.scroll { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+button { -webkit-user-select: none; user-select: none; cursor: pointer; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+img { display: block; }
+[hidden] { display: none !important; }
+
+svg.mi { width: 24px; height: 24px; fill: currentColor; flex-shrink: 0; }
+
+/* ── State layers ─────────────────────────────────────────── */
+@media (hover: hover) {
+  .icon-btn:hover, .nav-btn:hover .nav-icon, .chip:hover, .btn:hover, .round-btn:hover,
+  .wl-row:hover, .result-row:hover, .setting-row:hover, .prov-tile:hover, .seg button:hover {
+    background-image: linear-gradient(var(--hover-layer), var(--hover-layer));
+  }
+}
+.icon-btn:active, .nav-btn:active .nav-icon, .chip:active, .btn:active, .round-btn:active,
+.wl-row:active, .result-row:active, .setting-row:active, .prov-tile:active, .seg button:active {
+  background-image: linear-gradient(var(--press-layer), var(--press-layer));
+}
+
+/* ── Layout Shell ─────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+}
+@media (min-width: 600px) {
+  html, body { background: var(--surface-container); }
+  #app { border-left: 1px solid var(--outline-variant); border-right: 1px solid var(--outline-variant); }
+}
+/* min-width: 0 all the way down, so the card carousel scrolls instead of
+   widening the page. */
+#main { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.screens { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.screen { display: none; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.screen.active { display: flex; }
+
+.app-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 16px;
+  flex-shrink: 0;
+}
+.app-header h1 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.app-header .count { font-size: 14px; color: var(--on-surface-variant); margin-left: 2px; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.offline-pill {
+  display: none;
+  align-items: center; gap: 6px;
+  height: 28px; padding: 0 10px;
+  border-radius: 14px;
+  background: var(--warning-container);
+  color: var(--on-warning-container);
+  font-size: 12px; font-weight: 500;
+}
+.offline-pill svg { width: 16px; height: 16px; }
+body.offline .offline-pill { display: inline-flex; }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.icon-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  color: var(--on-surface-variant);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.icon-btn.on { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px;
+  padding: 0 24px;
+  border-radius: 20px;
+  border: none;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  background-color: transparent;
+  color: var(--primary);
+}
+.btn svg { width: 18px; height: 18px; margin-left: -8px; }
+.btn.filled { background-color: var(--primary); color: var(--on-primary); }
+.btn.tonal { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+.btn.outlined { border: 1px solid var(--outline); color: var(--primary); }
+.btn.danger { color: var(--error); }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: 0.38; cursor: default; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Chips ────────────────────────────────────────────────── */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--outline-variant);
+  background-color: transparent;
+  color: var(--on-surface-variant);
+  font-size: 14px; font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chip svg { width: 18px; height: 18px; margin-left: -4px; }
+.chip.on { background-color: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; }
+.chip.ai.on { background-color: var(--tertiary-container); color: var(--on-tertiary-container); }
+select.chip {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 30px;
+  background: var(--select-arrow) no-repeat right 6px center / 20px;
+}
+select.chip.on { background: var(--select-arrow) no-repeat right 6px center / 20px, var(--secondary-container); }
+.chip-sep { width: 1px; background: var(--outline-variant); margin: 4px 2px; flex-shrink: 0; }
+
+/* A two- or three-way segmented button. */
+.seg { display: inline-flex; border: 1px solid var(--outline); border-radius: 20px; overflow: hidden; flex-shrink: 0; }
+.seg button {
+  height: 36px; padding: 0 16px;
+  border: none; background-color: transparent;
+  color: var(--on-surface);
+  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.seg button + button { border-left: 1px solid var(--outline); }
+.seg button.on { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+.seg button svg { width: 18px; height: 18px; }
+
+/* ── Bottom Nav ───────────────────────────────────────────── */
+.bottom-nav {
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding: 0 8px env(safe-area-inset-bottom);
+  background: var(--surface-container);
+  display: flex;
+  flex-shrink: 0;
+}
+.nav-btn {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px;
+  border: none; background: none;
+  color: var(--on-surface-variant);
+  font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: 0.3px;
+  padding: 12px 0 14px;
+}
+.nav-btn.active { color: var(--on-surface); font-weight: 700; }
+.nav-icon {
+  width: 56px; height: 32px;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background-color 0.2s;
+}
+.nav-icon .i-fill { display: none; }
+.nav-btn.active .nav-icon { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+.nav-btn.active .nav-icon .i-fill { display: block; }
+.nav-btn.active .nav-icon .i-out { display: none; }
+
+/* ── Welcome ──────────────────────────────────────────────── */
+#welcome {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 32px 24px 24px;
+  gap: 16px;
+}
+body.needs-setup #welcome { display: flex; }
+body.needs-setup #main { display: none; }
+.welcome-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 24px 0 8px; }
+.welcome-hero img { width: 72px; height: 72px; border-radius: 18px; }
+.welcome-hero h2 { font-size: 28px; line-height: 36px; font-weight: 400; }
+.welcome-hero p { color: var(--on-surface-variant); max-width: 340px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; font-weight: 500; color: var(--on-surface-variant); letter-spacing: 0.4px; }
+.text-input {
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: 16px;
+  width: 100%;
+}
+.text-input:focus { border: 2px solid var(--primary); padding: 0 15px; }
+textarea.text-input { height: auto; min-height: 88px; padding: 12px 16px; resize: vertical; line-height: 22px; }
+textarea.text-input:focus { padding: 11px 15px; }
+.status-line { font-size: 13px; color: var(--on-surface-variant); min-height: 20px; }
+.status-line.err { color: var(--error); }
+.status-line.ok { color: var(--success); }
+
+/* ── Discover (swipe deck) ────────────────────────────────── */
+.deck-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+}
+.deck {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.swipe-card {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface-highest);
+  box-shadow: var(--elev-2);
+  touch-action: none;
+  user-select: none; -webkit-user-select: none;
+  cursor: grab;
+  will-change: transform;
+}
+.swipe-card.behind { transform: scale(0.95) translateY(10px); box-shadow: var(--elev-1); pointer-events: none; }
+.swipe-card.behind .card-info, .swipe-card.behind .stamp { opacity: 0; }
+.swipe-card.settle { transition: transform 0.25s ease; }
+.swipe-card.fly { transition: transform 0.3s ease-in, opacity 0.3s ease-in; }
+.swipe-card .poster {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.no-poster {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--on-surface-variant);
+  font-size: 20px; padding: 24px; text-align: center;
+}
+.card-info {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 120px 20px 20px;
+  background: var(--poster-wash);
+  color: var(--on-poster);
+  display: flex; flex-direction: column; gap: 6px;
+  transition: opacity 0.2s;
+}
+.card-title { font-size: 26px; line-height: 32px; font-weight: 500; }
+.card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--on-poster-variant); font-size: 13px; }
+.card-meta .rating { display: inline-flex; align-items: center; gap: 2px; }
+.card-meta svg { width: 16px; height: 16px; }
+.card-overview {
+  color: var(--on-poster-variant);
+  font-size: 13px; line-height: 18px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-provs { display: flex; gap: 6px; align-items: center; min-height: 0; flex-wrap: wrap; }
+.card-provs img { width: 28px; height: 28px; border-radius: 7px; }
+.card-provs .prov-note { font-size: 12px; color: var(--on-poster-variant); }
+.ai-reason {
+  align-self: flex-start;
+  display: flex; gap: 6px; align-items: flex-start;
+  background: var(--poster-chip);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+  font-size: 13px; line-height: 18px;
+}
+.ai-reason svg { width: 16px; height: 16px; margin-top: 1px; }
+.type-badge {
+  position: absolute; top: 14px; left: 14px;
+  height: 26px; padding: 0 10px;
+  border-radius: 13px;
+  background: var(--poster-chip);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  color: var(--on-poster);
+  font-size: 12px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.type-badge svg { width: 16px; height: 16px; }
+.stamp {
+  position: absolute; top: 28px;
+  padding: 4px 14px;
+  border: 4px solid currentColor;
+  border-radius: var(--r-md);
+  font-size: 28px; font-weight: 700; letter-spacing: 2px;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0,0,0,0.25);
+}
+.stamp.want { left: 20px; color: #6DD58C; transform: rotate(-12deg); }
+.stamp.pass { right: 20px; color: #F2B8B5; transform: rotate(12deg); }
+.stamp.seen { left: 50%; top: auto; bottom: 45%; color: #A8C7FA; transform: translateX(-50%); }
+
+.deck-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; text-align: center; padding: 24px;
+  color: var(--on-surface-variant);
+  border: 1px dashed var(--outline-variant);
+  border-radius: var(--r-xl);
+}
+.deck-empty svg { width: 48px; height: 48px; }
+
+.deck-actions {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px;
+  padding: 14px 0 16px;
+  flex-shrink: 0;
+}
+.round-btn {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background-color: var(--surface-high);
+  color: var(--on-surface-variant);
+  box-shadow: var(--elev-1);
+}
+.round-btn.big { width: 64px; height: 64px; }
+.round-btn.big svg { width: 32px; height: 32px; }
+.round-btn.pass { background-color: var(--error-container); color: var(--on-error-container); }
+.round-btn.want { background-color: var(--success-container); color: var(--on-success-container); }
+.round-btn.seen { background-color: var(--primary-container); color: var(--on-primary-container); }
+.round-btn:disabled { opacity: 0.38; cursor: default; }
+
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--surface-highest);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.spinner.small { width: 18px; height: 18px; border-width: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Watchlist ────────────────────────────────────────────── */
+.wl-toolbar { display: flex; align-items: center; gap: 8px; padding: 0 16px 8px; flex-shrink: 0; }
+.wl-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+#screen-watchlist.cards .fab { display: none; }
+#screen-watchlist:not(.cards) #wl-add-top { display: none; }
+.wl-list { padding: 0 8px 96px; display: flex; flex-direction: column; }
+.wl-row {
+  display: flex; gap: 14px; align-items: center;
+  padding: 8px;
+  border-radius: var(--r-lg);
+  border: none; background-color: transparent;
+  text-align: left; width: 100%;
+}
+.wl-row .thumb, .result-row .thumb {
+  width: 56px; height: 84px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-highest);
+  flex-shrink: 0;
+}
+.wl-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wl-row .t { font-size: 16px; line-height: 22px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-row .m, .wl-row .g { font-size: 13px; color: var(--on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-provs { display: flex; gap: 4px; margin-top: 4px; }
+.mini-provs img { width: 22px; height: 22px; border-radius: 6px; }
+.my-rating { color: var(--on-surface-variant); flex-shrink: 0; }
+.my-rating.pos { color: var(--success); }
+.my-rating.neg { color: var(--error); }
+
+.wl-carousel {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  padding: 0 9% 16px;
+  scrollbar-width: none;
+}
+.wl-carousel::-webkit-scrollbar { display: none; }
+.wl-slide {
+  position: relative;
+  flex: 0 0 82%;
+  max-width: 420px;
+  scroll-snap-align: center;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface-highest);
+  box-shadow: var(--elev-1);
+  border: none;
+  text-align: left;
+  padding: 0;
+  color: var(--on-poster);
+}
+.wl-slide .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.slide-count { text-align: center; font-size: 12px; color: var(--on-surface-variant); padding: 0 0 8px; flex-shrink: 0; }
+
+.fab {
+  position: absolute;
+  right: 16px; bottom: 16px;
+  height: 56px;
+  padding: 0 20px 0 16px;
+  border-radius: var(--r-lg);
+  border: none;
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
+  box-shadow: var(--elev-3);
+  display: inline-flex; align-items: center; gap: 12px;
+  font-weight: 500; font-size: 14px;
+  z-index: 5;
+}
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 12px;
+  padding: 56px 32px;
+  color: var(--on-surface-variant);
+}
+.empty-state svg { width: 48px; height: 48px; }
+.empty-state h3 { font-size: 18px; font-weight: 500; color: var(--on-surface); }
+
+/* ── Tonight ──────────────────────────────────────────────── */
+.tonight-body { padding: 0 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+.toggle-row { display: flex; align-items: center; gap: 12px; }
+.toggle-row .lbl { flex: 1; }
+.switch { position: relative; width: 52px; height: 32px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch .track {
+  position: absolute; inset: 0;
+  border-radius: 16px;
+  background: var(--surface-highest);
+  border: 2px solid var(--outline);
+  transition: background 0.2s, border-color 0.2s;
+}
+.switch .track::after {
+  content: '';
+  position: absolute; top: 6px; left: 6px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--outline);
+  transition: transform 0.2s, width 0.2s, height 0.2s, top 0.2s, left 0.2s, background 0.2s;
+}
+.switch input:checked + .track { background: var(--primary); border-color: var(--primary); }
+.switch input:checked + .track::after { background: var(--on-primary); width: 24px; height: 24px; top: 2px; left: 2px; transform: translateX(20px); }
+.switch input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.pick-card {
+  display: flex; gap: 14px;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+  border: none; text-align: left; width: 100%;
+}
+.pick-card .thumb { width: 84px; height: 126px; border-radius: var(--r-md); object-fit: cover; background: var(--surface-highest); flex-shrink: 0; }
+.pick-card .txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pick-card .t { font-size: 17px; line-height: 22px; font-weight: 500; }
+.pick-card .m { font-size: 13px; color: var(--on-surface-variant); }
+.pick-card .why { font-size: 14px; line-height: 20px; }
+.pick-rank {
+  width: 24px; height: 24px; border-radius: 12px;
+  background: var(--tertiary-container); color: var(--on-tertiary-container);
+  font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ai-note {
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
+  background: var(--tertiary-container);
+  color: var(--on-tertiary-container);
+  display: flex; gap: 10px;
+}
+.ai-note svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
+.busy-row { display: flex; align-items: center; gap: 12px; color: var(--on-surface-variant); padding: 8px 0; }
+
+/* ── Sheets ───────────────────────────────────────────────── */
+.scrim {
+  position: fixed; inset: 0;
+  background: var(--scrim);
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.scrim.show { opacity: 1; }
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  margin: 0 auto;
+  max-width: 560px;
+  max-height: 92%;
+  background: var(--surface);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  z-index: 101;
+  display: flex; flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: var(--elev-3);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+.sheet.show { transform: translateY(0); }
+.sheet .scroll { min-height: 0; }
+.sheet-handle { width: 32px; height: 4px; border-radius: 2px; background: var(--outline); opacity: 0.4; margin: 12px auto 4px; flex-shrink: 0; }
+.sheet-head { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px 24px; flex-shrink: 0; }
+.sheet-head h2 { font-size: 20px; line-height: 28px; font-weight: 400; flex: 1; min-width: 0; }
+.sheet-body { padding: 0 24px 24px; display: flex; flex-direction: column; gap: 16px; }
+.sheet-foot { padding: 12px 24px 16px; border-top: 1px solid var(--outline-variant); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+
+/* The title detail sheet */
+.detail-hero { position: relative; margin: 0 -24px; height: 200px; background: var(--surface-highest); overflow: hidden; flex-shrink: 0; }
+.detail-hero .icon-btn { position: absolute; top: 8px; right: 8px; z-index: 2; background-color: var(--poster-chip); color: var(--on-poster); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.detail-hero .backdrop { width: 100%; height: 100%; object-fit: cover; }
+.detail-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, var(--surface) 0%, transparent 60%); }
+.detail-top { display: flex; gap: 16px; margin-top: -84px; position: relative; z-index: 1; align-items: flex-end; }
+.detail-top .poster { width: 100px; height: 150px; border-radius: var(--r-md); object-fit: cover; box-shadow: var(--elev-2); background: var(--surface-highest); flex-shrink: 0; }
+.detail-top h2 { font-size: 22px; line-height: 28px; font-weight: 500; }
+.detail-top .m { font-size: 13px; color: var(--on-surface-variant); margin-top: 4px; }
+.tagline { font-style: italic; color: var(--on-surface-variant); }
+.genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.genre-chips span { font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); background: var(--surface-high); color: var(--on-surface-variant); }
+.sec-title { font-size: 14px; font-weight: 500; color: var(--on-surface); margin-bottom: 8px; }
+.prov-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.prov-chip { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: var(--r-md); background: var(--surface-high); font-size: 13px; }
+.prov-chip img { width: 32px; height: 32px; border-radius: var(--r-sm); }
+.prov-chip.mine { background: var(--success-container); color: var(--on-success-container); }
+.muted { color: var(--on-surface-variant); }
+.small { font-size: 12px; line-height: 16px; }
+.rate-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.rate-row .btn.on { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+
+/* The add sheet's search results and the import review list */
+.result-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 8px; margin: 0 -8px;
+  border-radius: var(--r-md);
+  border: none; background-color: transparent; text-align: left; width: calc(100% + 16px);
+}
+.result-row .thumb { width: 44px; height: 66px; }
+.result-row .txt { flex: 1; min-width: 0; }
+.result-row .t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-row .m { font-size: 12px; color: var(--on-surface-variant); }
+.result-row .state { font-size: 12px; color: var(--on-surface-variant); flex-shrink: 0; }
+.result-row input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--primary); flex-shrink: 0; }
+.import-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.import-opt {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 6px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--outline-variant);
+  background-color: transparent;
+  font-size: 13px; font-weight: 500; text-align: center;
+}
+.import-opt svg { color: var(--primary); }
+
+/* ── Settings ─────────────────────────────────────────────── */
+.settings-body { padding: 0 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+.section-card { background: var(--surface); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.section-card h3 { font-size: 16px; font-weight: 500; }
+.section-card p { color: var(--on-surface-variant); }
+.setting-row {
+  display: flex; align-items: center; gap: 16px;
+  min-height: 48px;
+  padding: 4px 8px; margin: 0 -8px;
+  border-radius: var(--r-md);
+  border: none; background-color: transparent; text-align: left;
+}
+.setting-row .lbl { flex: 1; min-width: 0; }
+.setting-row .sub { font-size: 12px; color: var(--on-surface-variant); }
+select.text-input { appearance: none; -webkit-appearance: none; background: var(--select-arrow) no-repeat right 12px center / 24px; padding-right: 44px; }
+.prov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.prov-tile {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 8px 4px;
+  border-radius: var(--r-md);
+  border: none; background-color: transparent;
+  font-size: 11px; line-height: 14px; text-align: center;
+  color: var(--on-surface-variant);
+}
+.prov-tile img { width: 52px; height: 52px; border-radius: var(--r-md); opacity: 0.55; filter: grayscale(0.6); transition: opacity 0.15s, filter 0.15s; }
+.prov-tile.on { color: var(--on-surface); font-weight: 500; }
+.prov-tile.on img { opacity: 1; filter: none; outline: 3px solid var(--primary); outline-offset: 2px; }
+.prov-tile .tick {
+  position: absolute; top: 2px; right: 8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--primary); color: var(--on-primary);
+  display: none; align-items: center; justify-content: center;
+}
+.prov-tile .tick svg { width: 16px; height: 16px; }
+.prov-tile.on .tick { display: flex; }
+.attribution { display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 16px; color: var(--on-surface-variant); }
+.attribution a { color: var(--primary); }
+
+/* ── Toast ────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 20px);
+  max-width: min(440px, calc(100vw - 32px));
+  width: max-content;
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+  border-radius: var(--r-sm);
+  padding: 4px 8px 4px 16px;
+  min-height: 48px;
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: var(--elev-3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 300;
+}
+body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom)); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast .msg { flex: 1; padding: 10px 0; }
+.toast button { border: none; background: none; color: var(--inverse-primary); font-weight: 500; padding: 10px 12px; border-radius: 20px; }
+
+/* ── Wide screens ─────────────────────────────────────────── */
+/* From 840px a navigation rail replaces the bottom bar and each tab gets the
+   width it can use. Phones must not change when this block does. */
+@media (min-width: 840px) {
+  #app { max-width: none; border: none; flex-direction: row; }
+  html, body { background: var(--bg); }
+  #main { flex-direction: row; }
+  .bottom-nav {
+    order: -1;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: var(--rail-w);
+    height: auto;
+    padding: 24px 0;
+    gap: 12px;
+    background: var(--bg);
+  }
+  .nav-btn { flex: none; padding: 0; }
+  .screens { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .screen > .app-header, .screen > .chip-row, .screen > .wl-toolbar { width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; }
+  #screen-discover .deck { max-width: 440px; }
+  #screen-watchlist .wl-list {
+    max-width: 1200px; margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 4px 8px;
+  }
+  #screen-watchlist .wl-carousel { padding: 0 24px 24px; }
+  #screen-watchlist .wl-slide { flex-basis: 340px; }
+  .tonight-body { max-width: 720px; width: 100%; margin: 0 auto; }
+  .settings-body { max-width: 760px; width: 100%; margin: 0 auto; }
+  .fab { right: 32px; bottom: 32px; }
+  .toast { bottom: 24px; }
+  .sheet { bottom: auto; top: 50%; border-radius: var(--r-xl); transform: translateY(-40%); opacity: 0; transition: transform 0.2s, opacity 0.2s; max-height: 86%; }
+  .sheet.show { transform: translateY(-50%); opacity: 1; }
+  .sheet-handle { display: none; }
+  .sheet-head { padding-top: 16px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- First run: the passcode that unlocks the server (see SETUP.md). -->
+  <section id="welcome" class="scroll">
+    <div class="welcome-hero">
+      <img src="icon-192.png" alt="">
+      <h2>Watchlist</h2>
+      <p>Swipe through what's trending, keep a list of what you want to watch, and let Claude help you pick.</p>
+    </div>
+    <form class="field" id="welcome-form" autocomplete="off">
+      <label for="welcome-pass">Passcode</label>
+      <input class="text-input" id="welcome-pass" type="password" autocomplete="current-password" placeholder="The APP_PASSCODE you set on the server">
+      <div class="status-line" id="welcome-status" role="status" aria-live="polite"></div>
+      <button class="btn filled wide" type="submit" id="welcome-go">Continue</button>
+    </form>
+    <p class="muted small">The passcode is checked by your Cloudflare Worker, which holds the TMDB and Claude keys. It's stored only on this device.</p>
+  </section>
+
+  <div id="main">
+    <div class="screens">
+
+      <!-- ── Discover ── -->
+      <section class="screen active" id="screen-discover" aria-label="Discover">
+        <header class="app-header">
+          <h1>Discover</h1>
+          <div class="header-right">
+            <span class="offline-pill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M248-171q-88 0-148-59T40-377q0-80 50.5-134T217-577q2-14 6.5-31.5T236-640L91-785q-9-9-9-21t9-21q9-9 21-9t21 9l707 707q9 9 9 21t-9 21q-9 9-21.5 9T797-78l-94-93H248Zm0-60h397L285-591q-11 15-14.5 34t-3.5 37h-19q-62 0-105 39.5t-43 101q0 61.5 43 105T248-231Zm216-181Zm390 210-47-47q25-17 39-38t14-50q0-43-31-73.5T755-441h-67v-81q0-88-61-147.5T478.47-729q-28.47 0-60.97 9T358-691l-42-42q36-29 77.5-42.5T478-789q111 0 190.5 79T748-520v21q72-1 122 45t50 117q0 35-16.5 73.5T854-202ZM583-470Z"/></svg>Offline</span>
+            <button class="icon-btn" onclick="openAddSheet()" aria-label="Search or import" title="Search or import"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z"/></svg></button>
+          </div>
+        </header>
+        <div class="chip-row" id="deck-chips">
+          <button class="chip ai" data-mode="ai" onclick="setDeckMode('ai')"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m654-454-91 147q-8 13-22.5 10T522-314l-33-133-306 305q-9 9-21 9t-21-9q-9-9-9-21t9-21l305-305-133-33q-14-4-17-18.5t10-22.5l147-92-12-172q-1-15 12.5-22t24.5 3l132 111 160-64q14-5 24 5t5 24l-65 160 111 132q10 11 3.5 24.5T827-441l-173-13ZM131-721q-5-5-5-11t5-11l46-46q5-5 11-5t11 5l45 45q5 5 5 11t-5 11l-46 46q-5 5-11 5t-11-5l-45-45Zm428 307 63-102 120 9-78-92 45-111-111 45-92-78 9 120-102 64 117 29 29 116Zm163 283-46-46q-5-5-4.5-11t5.5-11l45-45q5-5 11-5t11 5l46 46q5 5 4.5 11t-5.5 11l-45 45q-5 5-11 5t-11-5ZM578-579Z"/></svg>For you</button>
+          <button class="chip on" data-mode="trending" onclick="setDeckMode('trending')">Trending</button>
+          <button class="chip" data-mode="top" onclick="setDeckMode('top')">Top rated</button>
+          <button class="chip" data-mode="new" onclick="setDeckMode('new')">New</button>
+          <span class="chip-sep"></span>
+          <select class="chip" id="deck-type" onchange="setDeckFilter('type', this.value)" aria-label="Movies or TV">
+            <option value="all">Movies &amp; TV</option>
+            <option value="movie">Movies</option>
+            <option value="tv">TV shows</option>
+          </select>
+          <select class="chip" id="deck-genre" onchange="setDeckFilter('genre', this.value)" aria-label="Genre"></select>
+          <button class="chip" id="deck-mine" onclick="setDeckFilter('mine', !deckFilters.mine)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m429-379 181-116q14-8.79 14-24.89Q624-536 610-545L429-661q-15-10-30.5-1T383-635v230q0 18 15.5 27t30.5-1ZM140-200q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H630v50q0 12.75-8.62 21.37Q612.75-120 600-120H360q-12.75 0-21.37-8.63Q330-137.25 330-150v-50H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z"/></svg>My services</button>
+        </div>
+        <div class="deck-area">
+          <div class="deck" id="deck"></div>
+          <div class="deck-actions">
+            <button class="round-btn" id="btn-undo" onclick="undoDecision()" aria-label="Undo" title="Undo (U)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M289-200q-13 0-21.5-8.5T259-230q0-13 8.5-21.5T289-260h280q70 0 120.5-46.5T740-422q0-69-50.5-115.5T569-584H274l93 93q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-593q-5-5-7-10t-2-11q0-6 2-11t7-10l144-144q9-9 21-9t21 9q9 9 9 21t-9 21l-93 93h294q95 0 163.5 64T800-422q0 94-68.5 158T568-200H289Z"/></svg></button>
+            <button class="round-btn big pass" onclick="decideTop('pass')" aria-label="Not for me" title="Not for me (←)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-438 270-228q-9 9-21 9t-21-9q-9-9-9-21t9-21l210-210-210-210q-9-9-9-21t9-21q9-9 21-9t21 9l210 210 210-210q9-9 21-9t21 9q9 9 9 21t-9 21L522-480l210 210q9 9 9 21t-9 21q-9 9-21 9t-21-9L480-438Z"/></svg></button>
+            <button class="round-btn seen" onclick="decideTop('seen')" aria-label="Seen it" title="Seen it (↑)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M600.5-379.62q49.5-49.62 49.5-120.5T600.38-620.5Q550.76-670 479.88-670T359.5-620.38Q310-570.76 310-499.88t49.62 120.38q49.62 49.5 120.5 49.5t120.38-49.62Zm-200-41.12q-32.5-32.73-32.5-79.5 0-46.76 32.74-79.26 32.73-32.5 79.5-32.5 46.76 0 79.26 32.74 32.5 32.73 32.5 79.5 0 46.76-32.74 79.26-32.73 32.5-79.5 32.5-46.76 0-79.26-32.74ZM234.5-276Q124-352 57-470q-4-7.13-6-14.65-2-7.52-2-15.43 0-7.92 2-15.38 2-7.47 6-14.54 67-118 177.5-194T480-800q135 0 245.5 76T903-530q4 7.12 6 14.65 2 7.52 2 15.43 0 7.92-2 15.38-2 7.47-6 14.54-67 118-177.5 194T480-200q-135 0-245.5-76ZM480-500Zm222.5 174.5Q804-391 857-500q-53-109-154.33-174.5Q601.34-740 480.17-740T257.5-674.5Q156-609 102-500q54 109 155.33 174.5Q358.66-260 479.83-260t222.67-65.5Z"/></svg></button>
+            <button class="round-btn big want" onclick="decideTop('want')" aria-label="Add to watchlist" title="Add to watchlist (→)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M458-144q-11-4-19-12l-53-49Q262-320 171-424.5T80-643q0-90 60.5-150.5T290-854q51 0 101 24.5t89 80.5q44-56 91-80.5t99-24.5q89 0 149.5 60.5T880-643q0 114-91 218.5T574-205l-53 49q-8 8-19 12t-22 4q-11 0-22-4Z"/></svg></button>
+            <button class="round-btn" onclick="openTopDetail()" aria-label="Details" title="Details"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M504.5-288.63q8.5-8.62 8.5-21.37v-180q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v180q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm-1-314.57q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Watchlist ── -->
+      <section class="screen" id="screen-watchlist" aria-label="Watchlist">
+        <header class="app-header">
+          <h1>Watchlist <span class="count" id="wl-count"></span></h1>
+          <div class="header-right">
+            <span class="offline-pill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M248-171q-88 0-148-59T40-377q0-80 50.5-134T217-577q2-14 6.5-31.5T236-640L91-785q-9-9-9-21t9-21q9-9 21-9t21 9l707 707q9 9 9 21t-9 21q-9 9-21.5 9T797-78l-94-93H248Zm0-60h397L285-591q-11 15-14.5 34t-3.5 37h-19q-62 0-105 39.5t-43 101q0 61.5 43 105T248-231Zm216-181Zm390 210-47-47q25-17 39-38t14-50q0-43-31-73.5T755-441h-67v-81q0-88-61-147.5T478.47-729q-28.47 0-60.97 9T358-691l-42-42q36-29 77.5-42.5T478-789q111 0 190.5 79T748-520v21q72-1 122 45t50 117q0 35-16.5 73.5T854-202ZM583-470Z"/></svg>Offline</span>
+            <button class="icon-btn" id="wl-add-top" onclick="openAddSheet()" aria-label="Add titles" title="Add titles"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M450-450H230q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h220v-220q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v220h220q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H510v220q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-220Z"/></svg></button>
+            <button class="icon-btn" id="wl-view-list" onclick="setWlView('list')" aria-label="List view" title="List view"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M350-220h470v-137H350v137ZM140-603h150v-137H140v137Zm0 187h150v-127H140v127Zm0 196h150v-137H140v137Zm210-196h470v-127H350v127Zm0-187h470v-137H350v137ZM140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Z"/></svg></button>
+            <button class="icon-btn" id="wl-view-cards" onclick="setWlView('cards')" aria-label="Card view" title="Card view"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M80-355v-250q0-28.88 20.59-49.44t49.5-20.56q28.91 0 49.41 20.56Q220-633.88 220-605v250q0 28.87-20.59 49.44Q178.82-285 149.91-285t-49.41-20.56Q80-326.13 80-355Zm260 155q-24 0-42-18t-18-42v-440q0-24 18-42t42-18h280q24 0 42 18t18 42v440q0 24-18 42t-42 18H340Zm400-155v-250q0-28.88 20.59-49.44t49.5-20.56q28.91 0 49.41 20.56Q880-633.88 880-605v250q0 28.87-20.59 49.44Q838.82-285 809.91-285t-49.41-20.56Q740-326.13 740-355Zm-400 95h280v-440H340v440Zm140-220Z"/></svg></button>
+          </div>
+        </header>
+        <div class="wl-toolbar">
+          <div class="seg" role="group" aria-label="Which list">
+            <button id="wl-st-want" onclick="setWlFilter('status', 'want')">To watch</button>
+            <button id="wl-st-watched" onclick="setWlFilter('status', 'watched')">Watched</button>
+          </div>
+          <select class="chip" id="wl-sort" onchange="setWlFilter('sort', this.value)" aria-label="Sort" style="margin-left:auto">
+            <option value="added">Recently added</option>
+            <option value="oldest">Oldest added</option>
+            <option value="rating">Top rated</option>
+            <option value="runtime">Shortest first</option>
+            <option value="release">Newest releases</option>
+            <option value="title">Title A–Z</option>
+          </select>
+        </div>
+        <div class="chip-row" id="wl-chips"></div>
+        <div class="wl-body" id="wl-body"></div>
+        <button class="fab" onclick="openAddSheet()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M450-450H230q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h220v-220q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v220h220q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H510v220q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-220Z"/></svg>Add</button>
+      </section>
+
+      <!-- ── Tonight ── -->
+      <section class="screen" id="screen-tonight" aria-label="Tonight">
+        <header class="app-header">
+          <h1>What to watch tonight</h1>
+          <div class="header-right"><span class="offline-pill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M248-171q-88 0-148-59T40-377q0-80 50.5-134T217-577q2-14 6.5-31.5T236-640L91-785q-9-9-9-21t9-21q9-9 21-9t21 9l707 707q9 9 9 21t-9 21q-9 9-21.5 9T797-78l-94-93H248Zm0-60h397L285-591q-11 15-14.5 34t-3.5 37h-19q-62 0-105 39.5t-43 101q0 61.5 43 105T248-231Zm216-181Zm390 210-47-47q25-17 39-38t14-50q0-43-31-73.5T755-441h-67v-81q0-88-61-147.5T478.47-729q-28.47 0-60.97 9T358-691l-42-42q36-29 77.5-42.5T478-789q111 0 190.5 79T748-520v21q72-1 122 45t50 117q0 35-16.5 73.5T854-202ZM583-470Z"/></svg>Offline</span></div>
+        </header>
+        <div class="scroll" style="flex:1;min-height:0">
+          <div class="tonight-body">
+            <div class="field">
+              <label for="mood">What are you in the mood for?</label>
+              <textarea class="text-input" id="mood" rows="2" placeholder="e.g. something funny, under two hours, nothing too heavy"></textarea>
+            </div>
+            <div class="chip-row" id="mood-chips" style="padding:0;flex-wrap:wrap"></div>
+            <div class="toggle-row">
+              <span class="lbl">Movies or shows</span>
+              <div class="seg" role="group" aria-label="Movies or shows">
+                <button id="tn-all" onclick="setTonightType('all')">Both</button>
+                <button id="tn-movie" onclick="setTonightType('movie')">Movies</button>
+                <button id="tn-tv" onclick="setTonightType('tv')">Shows</button>
+              </div>
+            </div>
+            <label class="toggle-row">
+              <span class="lbl">Only what's on my services</span>
+              <span class="switch"><input type="checkbox" id="tn-mine" onchange="tonightMine = this.checked; lsSet('wl.tonightMine', tonightMine)"><span class="track"></span></span>
+            </label>
+            <div class="btn-row">
+              <button class="btn filled" id="tn-pick" onclick="pickTonight()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m654-454-91 147q-8 13-22.5 10T522-314l-33-133-306 305q-9 9-21 9t-21-9q-9-9-9-21t9-21l305-305-133-33q-14-4-17-18.5t10-22.5l147-92-12-172q-1-15 12.5-22t24.5 3l132 111 160-64q14-5 24 5t5 24l-65 160 111 132q10 11 3.5 24.5T827-441l-173-13ZM131-721q-5-5-5-11t5-11l46-46q5-5 11-5t11 5l45 45q5 5 5 11t-5 11l-46 46q-5 5-11 5t-11-5l-45-45Zm428 307 63-102 120 9-78-92 45-111-111 45-92-78 9 120-102 64 117 29 29 116Zm163 283-46-46q-5-5-4.5-11t5.5-11l45-45q5-5 11-5t11 5l46 46q5 5 4.5 11t-5.5 11l-45 45q-5 5-11 5t-11-5ZM578-579Z"/></svg>Pick for me</button>
+              <button class="btn tonal" onclick="surpriseMe()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M606-160q-13 0-21.5-8.5T576-190q0-13 8.5-21.5T606-220h90L543-372q-9-9-9-21t9-21q9-9 21.5-9.5T586-415l154 153v-91q0-13 8.5-21.5T770-383q13 0 21.5 8.5T800-353v163q0 13-8.5 21.5T770-160H606Zm-436-10q-9-9-9-21t9-21l528-528h-92q-13 0-21.5-8.5T576-770q0-13 8.5-21.5T606-800h164q13 0 21.5 8.5T800-770v163q0 13-8.5 21.5T770-577q-13 0-21.5-8.5T740-607v-90L212-169q-9 9-21 8.5t-21-9.5Zm-1-579q-9-9-9-21.5t9-21.5q9-9 21-9t21 9l205 205q9 9 9.5 21t-8.5 21q-9 9-21.5 9t-21.5-9L169-749Z"/></svg>Surprise me</button>
+            </div>
+            <div id="tonight-results" style="display:flex;flex-direction:column;gap:12px"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Settings ── -->
+      <section class="screen" id="screen-settings" aria-label="Settings">
+        <header class="app-header">
+          <h1>Settings</h1>
+          <div class="header-right"><span class="offline-pill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M248-171q-88 0-148-59T40-377q0-80 50.5-134T217-577q2-14 6.5-31.5T236-640L91-785q-9-9-9-21t9-21q9-9 21-9t21 9l707 707q9 9 9 21t-9 21q-9 9-21.5 9T797-78l-94-93H248Zm0-60h397L285-591q-11 15-14.5 34t-3.5 37h-19q-62 0-105 39.5t-43 101q0 61.5 43 105T248-231Zm216-181Zm390 210-47-47q25-17 39-38t14-50q0-43-31-73.5T755-441h-67v-81q0-88-61-147.5T478.47-729q-28.47 0-60.97 9T358-691l-42-42q36-29 77.5-42.5T478-789q111 0 190.5 79T748-520v21q72-1 122 45t50 117q0 35-16.5 73.5T854-202ZM583-470Z"/></svg>Offline</span></div>
+        </header>
+        <div class="scroll" id="settings-scroll" style="flex:1;min-height:0">
+          <div class="settings-body">
+
+            <div class="section-card" id="services-card">
+              <h3>My streaming services</h3>
+              <p>Pick the services you have. Discover and Tonight can stick to what you can watch without paying extra.</p>
+              <div class="field">
+                <label for="region">Country</label>
+                <select class="text-input" id="region" onchange="setRegion(this.value)"></select>
+              </div>
+              <input class="text-input" id="prov-filter" type="search" placeholder="Find a service" oninput="renderProviderGrid()">
+              <div class="prov-grid" id="prov-grid"></div>
+              <button class="btn outlined" id="prov-more" onclick="provShowAll = !provShowAll; renderProviderGrid()">Show all services</button>
+            </div>
+
+            <div class="section-card">
+              <h3>Sync</h3>
+              <p>Your list is kept on your Worker, so every device you sign in on sees the same one.</p>
+              <div class="setting-row" style="cursor:default">
+                <div class="lbl"><div id="sync-status">Not synced yet</div><div class="sub" id="sync-sub"></div></div>
+                <button class="btn tonal" onclick="syncNow(true)"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M220-477q0 63 23.5 109.5T307-287l30 21v-94q0-13 8.5-21.5T367-390q13 0 21.5 8.5T397-360v170q0 13-8.5 21.5T367-160H197q-13 0-21.5-8.5T167-190q0-13 8.5-21.5T197-220h100l-15-12q-64-51-93-111t-29-134q0-94 49.5-171.5T342-766q11-5 21 0t14 16q5 11 0 22.5T361-710q-64 34-102.5 96.5T220-477Zm520-6q0-48-23.5-97.5T655-668l-29-26v94q0 13-8.5 21.5T596-570q-13 0-21.5-8.5T566-600v-170q0-13 8.5-21.5T596-800h170q13 0 21.5 8.5T796-770q0 13-8.5 21.5T766-740H665l15 14q60 56 90 120t30 123q0 93-48 169.5T623-195q-11 6-22.5 1.5T584-210q-5-11 0-22.5t16-17.5q65-33 102.5-96T740-483Z"/></svg>Sync now</button>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <h3>Google watchlist</h3>
+              <p>Google doesn't offer a way for other apps to read your Google TV or Search watchlist. To bring it over, take screenshots of it (in the Google TV app, or by searching "my watchlist" in Google) and import them here: Claude reads the titles and you choose which to add.</p>
+              <div class="btn-row">
+                <button class="btn tonal" onclick="pickPhotos()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Zm0 0v-600 600Zm86-97h429q8.5 0 12.75-8t-.75-16L590-457q-5-6-12-6t-12 6L446-302l-81-111q-5-6-12-6t-12 6l-86 112q-6 8-1.75 16t12.75 8Z"/></svg>Import screenshots</button>
+                <button class="btn outlined" onclick="pickListFile()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M452-403v171q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63 8.5-8.62 8.5-21.37v-171l61 61q3 3 15-2t22.5-9q10.5-4 14.5-3.5T615-342q9-9 8.5-21t-9.5-21L501-494q-5-5-10.13-7-5.14-2-11-2-5.87 0-10.87 2-5 2-10 7L347-382q-9 9-9 21t9 21.39q9 8.61 21 8.61t21-9l63-63ZM220-80q-24 0-42-18t-18-42v-680q0-24 18-42t42-18h336q12.44 0 23.72 5T599-862l183 183q8 8 13 19.28 5 11.28 5 23.72v496q0 24-18 42t-42 18H220Zm331-584v-156H220v680h520v-494H581q-12.75 0-21.37-8.63Q551-651.25 551-664ZM220-820v186-186 680-680Z"/></svg>Import a file</button>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <h3>Passcode</h3>
+              <p>Checked by your Worker before it uses the TMDB or Claude keys.</p>
+              <div class="field">
+                <input class="text-input" id="set-pass" type="password" autocomplete="current-password" placeholder="Passcode">
+                <div class="status-line" id="pass-status" role="status" aria-live="polite"></div>
+              </div>
+              <div class="btn-row"><button class="btn tonal" onclick="savePasscode()">Save and check</button></div>
+            </div>
+
+            <div class="section-card">
+              <h3>Backup</h3>
+              <p id="backup-counts"></p>
+              <div class="btn-row">
+                <button class="btn tonal" onclick="exportBackup()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M469-327q-5-2-10-7L308-485q-9-9.27-8.5-21.64.5-12.36 9.11-21.36 9.39-9 21.89-9t21.5 9l98 99v-341q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v341l99-99q8.8-9 20.9-8.5 12.1.5 21.49 9.5 8.61 9 8.61 21.5t-9 21.5L501-334q-5 5-10.13 7-5.14 2-11 2-5.87 0-10.87-2ZM220-160q-24 0-42-18t-18-42v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113h520v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113q0 24-18 42t-42 18H220Z"/></svg>Export</button>
+                <button class="btn outlined" onclick="document.getElementById('backup-input').click()"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M220-160q-24 0-42-18t-18-42v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113h520v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113q0 24-18 42t-42 18H220Zm230-524-99 99q-8.8 9-20.9 8.5-12.1-.5-21.49-9.5-8.61-9-8.61-21.5t9-21.5l150-150q5-5 10.13-7 5.14-2 11-2 5.87 0 10.87 2 5 2 10 7l151 151q9 9 9 21t-8.61 21q-9.39 9-21.89 9t-21.5-9l-99-98v341q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-341Z"/></svg>Restore</button>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <h3>About</h3>
+              <p>Version <span id="app-version"></span></p>
+              <div class="attribution">
+                <span>Movie and TV data from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+                <span>Streaming availability from <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a>, via TMDB.</span>
+                <span>Suggestions and photo reading by Claude.</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Main">
+      <button class="nav-btn active" data-tab="discover" onclick="switchTab('discover')">
+        <span class="nav-icon"><span class="i-out"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m330-311 213-66q14-5 24-15t15-24l66-213q3-8.64-3.5-15.32T629-648l-213 66q-14 5-24 15t-15 24l-66 213q-3 8.64 3.5 15.32T330-311Zm149.76-129q-16.76 0-28.26-11.74-11.5-11.73-11.5-28.5 0-16.76 11.74-28.26 11.73-11.5 28.5-11.5 16.76 0 28.26 11.74 11.5 11.73 11.5 28.5 0 16.76-11.74 28.26-11.73 11.5-28.5 11.5Zm.51 360q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.22-60Q622-140 721-239.49q99-99.48 99-241Q820-622 721-721t-240.51-99q-141.52 0-241 99Q140-622 140-480.49q0 141.52 99.49 241 99.48 99.49 241 99.49ZM480-480Z"/></svg></span><span class="i-fill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m330-311 213-66q14-5 24-15t15-24l66-213q3-9-3.5-15.5T629-648l-213 66q-14 5-24 15t-15 24l-66 213q-3 9 3.5 15.5T330-311Zm150-129q-17 0-28.5-11.5T440-480q0-17 11.5-28.5T480-520q17 0 28.5 11.5T520-480q0 17-11.5 28.5T480-440Zm0 360q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Z"/></svg></span></span>Discover
+      </button>
+      <button class="nav-btn" data-tab="watchlist" onclick="switchTab('watchlist')">
+        <span class="nav-icon"><span class="i-out"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m480-240-196 84q-30 13-57-4.76-27-17.75-27-50.24v-574q0-24 18-42t42-18h440q24 0 42 18t18 42v574q0 32.49-27 50.24Q706-143 676-156l-196-84Zm0-64 220 93v-574H260v574l220-93Zm0-481H260h440-220Z"/></svg></span><span class="i-fill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="m480-240-196 84q-30 13-57-5t-27-50v-574q0-24 18-42t42-18h440q24 0 42 18t18 42v574q0 32-27 50t-57 5l-196-84Z"/></svg></span></span>Watchlist
+      </button>
+      <button class="nav-btn" data-tab="tonight" onclick="switchTab('tonight')">
+        <span class="nav-icon"><span class="i-out"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M788.5-362q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM802-811.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9t-21.5-9q-9-9-9-21.5t9-21.5l64-63q9-9 21-9t21 9q9 9 9 21.5ZM188.5-842q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM202-331.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9T87-247q-9-9-9-21t9-21l64-64q9-9 21-9t21 9q9 9 9 21.5ZM323-245l157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm157-240Zm0 216L294-157q-8 5-17 4.5t-16-5.5q-7-5-10.5-13t-1.5-18l49-212-164-143q-8-7-9.5-15.5t.5-16.5q2-8 9-13.5t17-6.5l217-19 84-200q4-9 12-13.5t16-4.5q8 0 16 4.5t12 13.5l84 200 217 19q10 1 17 6.5t9 13.5q2 8 .5 16.5T826-544L662-401l49 212q2 10-1.5 18T699-158q-7 5-16 5.5t-17-4.5L480-269Z"/></svg></span><span class="i-fill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M788.5-362q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM802-811.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9t-21.5-9q-9-9-9-21.5t9-21.5l64-63q9-9 21-9t21 9q9 9 9 21.5ZM188.5-842q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM202-331.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9T87-247q-9-9-9-21t9-21l64-64q9-9 21-9t21 9q9 9 9 21.5ZM480-269 294-157q-8 5-17 4.5t-16-5.5q-7-5-10.5-13t-1.5-18l49-212-164-143q-8-7-9.5-15.5t.5-16.5q2-8 9-13.5t17-6.5l217-19 84-200q4-9 12-13.5t16-4.5q8 0 16 4.5t12 13.5l84 200 217 19q10 1 17 6.5t9 13.5q2 8 .5 16.5T826-544L662-401l49 212q2 10-1.5 18T699-158q-7 5-16 5.5t-17-4.5L480-269Z"/></svg></span></span>Tonight
+      </button>
+      <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')">
+        <span class="nav-icon"><span class="i-out"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z"/></svg></span><span class="i-fill"><svg class="mi" viewBox="0 -960 960 960" aria-hidden="true"><path d="M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm59-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg></span></span>Settings
+      </button>
+    </nav>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden onclick="closeSheet()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span class="msg"></span><button type="button" hidden></button></div>
+<input type="file" id="photo-input" accept="image/*" multiple hidden>
+<input type="file" id="file-input" accept=".csv,.txt,.json,.html,text/*" hidden>
+<input type="file" id="backup-input" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+
+// ── Config ─────────────────────────────────────────────────
+const APP_VERSION = '1.0.0';
+const IMG = 'https://image.tmdb.org/t/p/';
+const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
+const REGIONS = [
+  ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
+  ['AU', 'Australia'], ['NZ', 'New Zealand'], ['DE', 'Germany'], ['FR', 'France'],
+  ['ES', 'Spain'], ['IT', 'Italy'], ['NL', 'Netherlands'], ['MX', 'Mexico'],
+  ['BR', 'Brazil'], ['IN', 'India'], ['JP', 'Japan']
+];
+// TMDB numbers movie and TV genres separately, and TV merges some ("Action &
+// Adventure", "Sci-Fi & Fantasy"). The app filters by these shared names.
+const GENRES = [
+  ['Action', 28, 10759], ['Adventure', 12, 10759], ['Animation', 16, 16], ['Comedy', 35, 35],
+  ['Crime', 80, 80], ['Documentary', 99, 99], ['Drama', 18, 18], ['Family', 10751, 10751],
+  ['Fantasy', 14, 10765], ['History', 36, null], ['Horror', 27, null], ['Kids', null, 10762],
+  ['Music', 10402, null], ['Mystery', 9648, 9648], ['Reality', null, 10764], ['Romance', 10749, null],
+  ['Sci-Fi', 878, 10765], ['Thriller', 53, null], ['War', 10752, 10768], ['Western', 37, 37]
+];
+const GENRE_NAMES = { movie: {}, tv: { 10763: ['News'], 10766: ['Soap'], 10767: ['Talk'] } };
+for (const [name, m, t] of GENRES) {
+  if (m) (GENRE_NAMES.movie[m] = GENRE_NAMES.movie[m] || []).push(name);
+  if (t) (GENRE_NAMES.tv[t] = GENRE_NAMES.tv[t] || []).push(name);
+}
+const MOODS = ['Something light', 'Edge of my seat', 'Under 2 hours', 'A show to start', 'Feel-good', 'Mind-bending', 'Date night', 'Background while I cook'];
+
+// ── State ──────────────────────────────────────────────────
+let passcode = '';
+// Every title the person has said anything about, keyed "movie:603" / "tv:1396".
+// status: 'want' (on the watchlist), 'watched', 'pass' (swiped no), 'none' (undone).
+let items = {};
+let prefs = { services: [], region: 'US', updatedAt: 0 };
+let prefsDirty = false;
+let dirty = new Set();          // item keys changed since the last sync
+let lastSync = 0;               // server clock at the last sync
+let syncing = false;
+let syncError = '';
+// Per-device cache of TMDB details: runtime, cast, and where it streams.
+let details = {};
+// Titles seen this session that aren't in `items` (deck cards, search results).
+const titles = {};
+
+let deck = [];
+let deckKeys = new Set();
+let deckFilters = { mode: 'trending', type: 'all', genre: '', mine: false };
+let deckPage = 0;
+let deckLoading = false;
+let deckDone = false;
+let deckError = '';
+let deckGen = 0;                // bumps when filters change, so stale fetches are dropped
+let undoStack = [];
+
+let wlView = 'list';
+let wlFilters = { status: 'want', type: 'all', genres: new Set(), mine: false, sort: 'added' };
+
+let tonightType = 'all';
+let tonightMine = false;
+let tonightBusy = false;
+
+let providerCatalog = null;     // { region, list: [{id, name, logo}] }
+let provShowAll = false;
+
+let sheetOpen = false;
+let sheetOnClose = null;
+let toastTimer = null;
+let currentTab = 'discover';
+
+// ── Icons ──────────────────────────────────────────────────
+// Material Symbols (Rounded, weight 400). Paths are Google's, from
+// github.com/google/material-design-icons (Apache 2.0).
+const ICON_PATHS = {
+  close: 'M480-438 270-228q-9 9-21 9t-21-9q-9-9-9-21t9-21l210-210-210-210q-9-9-9-21t9-21q9-9 21-9t21 9l210 210 210-210q9-9 21-9t21 9q9 9 9 21t-9 21L522-480l210 210q9 9 9 21t-9 21q-9 9-21 9t-21-9L480-438Z',
+  favorite: 'M458.19-144Q447-148 439-156l-53-49Q262-320 171-424.5T80-643q0-90.15 60.5-150.58Q201-854 290-854q51 0 101 24.5t89 80.5q44-56 91-80.5t99-24.5q89 0 149.5 60.42Q880-733.15 880-643q0 114-91 218.5T574-205l-53 49q-8.25 8.38-19.12 12.19Q491-140 480.19-140q-10.8 0-22-4ZM454-683q-27-49-71-80t-93-31q-66 0-108 42.5t-42 108.93q0 57.57 38.88 121.22 38.88 63.66 93 123.5Q326-338 384-286.5q58 51.5 96 86.5 38-34 96-86t112-112.5q54-60.5 93-124.19T820-643q0-66-42.5-108.5T670-794q-50 0-93.5 30.5T504-683q-5 8-11 11.5t-14 3.5q-8 0-14.5-3.5T454-683Zm26 186Z',
+  favoriteFill: 'M458-144q-11-4-19-12l-53-49Q262-320 171-424.5T80-643q0-90 60.5-150.5T290-854q51 0 101 24.5t89 80.5q44-56 91-80.5t99-24.5q89 0 149.5 60.5T880-643q0 114-91 218.5T574-205l-53 49q-8 8-19 12t-22 4q-11 0-22-4Z',
+  visibility: 'M600.5-379.62q49.5-49.62 49.5-120.5T600.38-620.5Q550.76-670 479.88-670T359.5-620.38Q310-570.76 310-499.88t49.62 120.38q49.62 49.5 120.5 49.5t120.38-49.62Zm-200-41.12q-32.5-32.73-32.5-79.5 0-46.76 32.74-79.26 32.73-32.5 79.5-32.5 46.76 0 79.26 32.74 32.5 32.73 32.5 79.5 0 46.76-32.74 79.26-32.73 32.5-79.5 32.5-46.76 0-79.26-32.74ZM234.5-276Q124-352 57-470q-4-7.13-6-14.65-2-7.52-2-15.43 0-7.92 2-15.38 2-7.47 6-14.54 67-118 177.5-194T480-800q135 0 245.5 76T903-530q4 7.12 6 14.65 2 7.52 2 15.43 0 7.92-2 15.38-2 7.47-6 14.54-67 118-177.5 194T480-200q-135 0-245.5-76ZM480-500Zm222.5 174.5Q804-391 857-500q-53-109-154.33-174.5Q601.34-740 480.17-740T257.5-674.5Q156-609 102-500q54 109 155.33 174.5Q358.66-260 479.83-260t222.67-65.5Z',
+  undo: 'M289-200q-13 0-21.5-8.5T259-230q0-13 8.5-21.5T289-260h280q70 0 120.5-46.5T740-422q0-69-50.5-115.5T569-584H274l93 93q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-593q-5-5-7-10t-2-11q0-6 2-11t7-10l144-144q9-9 21-9t21 9q9 9 9 21t-9 21l-93 93h294q95 0 163.5 64T800-422q0 94-68.5 158T568-200H289Z',
+  viewList: 'M350-220h470v-137H350v137ZM140-603h150v-137H140v137Zm0 187h150v-127H140v127Zm0 196h150v-137H140v137Zm210-196h470v-127H350v127Zm0-187h470v-137H350v137ZM140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Z',
+  viewCarousel: 'M80-355v-250q0-28.88 20.59-49.44t49.5-20.56q28.91 0 49.41 20.56Q220-633.88 220-605v250q0 28.87-20.59 49.44Q178.82-285 149.91-285t-49.41-20.56Q80-326.13 80-355Zm260 155q-24 0-42-18t-18-42v-440q0-24 18-42t42-18h280q24 0 42 18t18 42v440q0 24-18 42t-42 18H340Zm400-155v-250q0-28.88 20.59-49.44t49.5-20.56q28.91 0 49.41 20.56Q880-633.88 880-605v250q0 28.87-20.59 49.44Q838.82-285 809.91-285t-49.41-20.56Q740-326.13 740-355Zm-400 95h280v-440H340v440Zm140-220Z',
+  tune: 'M435.5-128.63Q427-137.25 427-150v-165q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v53h323q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H487v52q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63ZM150-202q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h187q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Zm165.5-174.63Q307-385.25 307-398v-52H150q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h157v-54q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v166q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63ZM457-450q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h353q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H457Zm144.5-173.63Q593-632.25 593-645v-165q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v52h157q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H653v53q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63ZM150-698q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h353q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Z',
+  search: 'M378-329q-108.16 0-183.08-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.56 9 21.78T818-143q-9 9-22.22 9-13.22 0-21.78-9L533-384q-30 26-69.96 40.5Q423.08-329 378-329Zm-1-60q81.25 0 138.13-57.5Q572-504 572-585t-56.87-138.5Q458.25-781 377-781q-82.08 0-139.54 57.5Q180-666 180-585t57.46 138.5Q294.92-389 377-389Z',
+  add: 'M450-450H230q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h220v-220q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v220h220q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H510v220q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-220Z',
+  photoCamera: 'M479.5-267q72.5 0 121.5-49t49-121.5q0-72.5-49-121T479.5-607q-72.5 0-121 48.5t-48.5 121q0 72.5 48.5 121.5t121 49Zm0-60q-47.5 0-78.5-31.5t-31-79q0-47.5 31-78.5t78.5-31q47.5 0 79 31t31.5 78.5q0 47.5-31.5 79t-79 31.5ZM140-120q-24 0-42-18t-18-42v-513q0-23 18-41.5t42-18.5h147l55-66q8-11 20-16t26-5h184q14 0 26 5t20 16l55 66h147q23 0 41.5 18.5T880-693v513q0 24-18.5 42T820-120H140Zm0-60h680v-513H645l-73-87H388l-73 87H140v513Zm340-257Z',
+  settings: 'M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm15-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z',
+  movie: 'm140-800 58 119q7.73 15.4 22.08 24.2Q234.44-648 251-648q32.5 0 49.25-27.46T303-732l-33-68h89l58 119q7.73 15.4 22.08 24.2Q453.44-648 470-648q32.5 0 49.25-27.46T522-732l-33-68h89l58 119q7.73 15.4 22.08 24.2Q672.44-648 689-648q32.5 0 49.25-27.46T741-732l-33-68h112q24 0 42 18t18 42v520q0 24-18 42t-42 18H140q-24 0-42-18t-18-42v-520q0-24 18-42t42-18Zm0 212v368h680v-368H140Zm0 0v368-368Z',
+  tv: 'M140-200q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H630v50q0 12.75-8.62 21.37Q612.75-120 600-120H360q-12.75 0-21.37-8.63Q330-137.25 330-150v-50H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z',
+  playArrow: 'M320-258v-450q0-14 9-22t21-8q4 0 8 1t8 3l354 226q7 5 10.5 11t3.5 14q0 8-3.5 14T720-458L366-232q-4 2-8 3t-8 1q-12 0-21-8t-9-22Zm60-225Zm0 171 269-171-269-171v342Z',
+  delete: 'M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-11q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h158q0-13 8.63-21.5 8.62-8.5 21.37-8.5h204q12.75 0 21.38 8.62Q612-822.75 612-810h158q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5h-11v570q0 24.75-17.62 42.37Q723.75-120 699-120H261Zm438-630H261v570h438v-570ZM418.5-274.63q8.5-8.62 8.5-21.37v-339q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v339q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm166 0q8.5-8.62 8.5-21.37v-339q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v339q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63ZM261-750v570-570Z',
+  check: 'm378-332 363-363q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L399-267q-9 9-21 9t-21-9L175-449q-9-9-8.5-21.5T176-492q9-9 21.5-9t21.5 9l159 160Z',
+  sync: 'M220-477q0 63 23.5 109.5T307-287l30 21v-94q0-13 8.5-21.5T367-390q13 0 21.5 8.5T397-360v170q0 13-8.5 21.5T367-160H197q-13 0-21.5-8.5T167-190q0-13 8.5-21.5T197-220h100l-15-12q-64-51-93-111t-29-134q0-94 49.5-171.5T342-766q11-5 21 0t14 16q5 11 0 22.5T361-710q-64 34-102.5 96.5T220-477Zm520-6q0-48-23.5-97.5T655-668l-29-26v94q0 13-8.5 21.5T596-570q-13 0-21.5-8.5T566-600v-170q0-13 8.5-21.5T596-800h170q13 0 21.5 8.5T796-770q0 13-8.5 21.5T766-740H665l15 14q60 56 90 120t30 123q0 93-48 169.5T623-195q-11 6-22.5 1.5T584-210q-5-11 0-22.5t16-17.5q65-33 102.5-96T740-483Z',
+  image: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Zm0 0v-600 600Zm86-97h429q8.5 0 12.75-8t-.75-16L590-457q-5-6-12-6t-12 6L446-302l-81-111q-5-6-12-6t-12 6l-86 112q-6 8-1.75 16t12.75 8Z',
+  star: 'm323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm157-24L294-157q-8 5-17 4.5t-16-5.5q-7-5-10.5-13t-1.5-18l49-212-164-143q-8-7-9.5-15.5t.5-16.5q2-8 9-13.5t17-6.5l217-19 84-200q4-9 12-13.5t16-4.5q8 0 16 4.5t12 13.5l84 200 217 19q10 1 17 6.5t9 13.5q2 8 .5 16.5T826-544L662-401l49 212q2 10-1.5 18T699-158q-7 5-16 5.5t-17-4.5L480-269Zm0-206Z',
+  thumbUp: 'M855-632q24 0 42 18t18 42v81.84q0 7.16 1.5 14.66T915-461L789-171q-8.88 21.25-29.59 36.12Q738.69-120 716-120H272v-512l225-238q13.6-14 32.19-16.5Q547.77-889 565-879q17 10 25.5 27.5t4.2 36.5L556-632h299Zm-523 25v427h397l126-299v-93H482l53-249-203 214ZM139-120q-24.75 0-42.37-17.63Q79-155.25 79-180v-392q0-24.75 17.63-42.38Q114.25-632 139-632h133v60H139v392h133v60H139Zm193-60v-427 427Z',
+  thumbDown: 'M105-328q-24 0-42-18t-18-42v-81.84q0-7.16-1.5-14.66T45-499l126-290q8.88-21.25 29.59-36.13Q221.31-840 244-840h444v512L463-90q-13.6 14-32.19 16.5Q412.23-71 395-81q-17-10-25.5-27.5t-4.2-36.5L404-328H105Zm523-25v-427H231L105-481v93h373l-53 249 203-214Zm193-487q24.75 0 42.38 17.62Q881-804.75 881-780v392q0 24.75-17.62 42.37Q845.75-328 821-328H688v-60h133v-392H688v-60h133Zm-193 60v427-427Z',
+  explore: 'm330-311 213-66q14-5 24-15t15-24l66-213q3-8.64-3.5-15.32T629-648l-213 66q-14 5-24 15t-15 24l-66 213q-3 8.64 3.5 15.32T330-311Zm149.76-129q-16.76 0-28.26-11.74-11.5-11.73-11.5-28.5 0-16.76 11.74-28.26 11.73-11.5 28.5-11.5 16.76 0 28.26 11.74 11.5 11.73 11.5 28.5 0 16.76-11.74 28.26-11.73 11.5-28.5 11.5Zm.51 360q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.22-60Q622-140 721-239.49q99-99.48 99-241Q820-622 721-721t-240.51-99q-141.52 0-241 99Q140-622 140-480.49q0 141.52 99.49 241 99.48 99.49 241 99.49ZM480-480Z',
+  bookmark: 'm480-240-196 84q-30 13-57-4.76-27-17.75-27-50.24v-574q0-24 18-42t42-18h440q24 0 42 18t18 42v574q0 32.49-27 50.24Q706-143 676-156l-196-84Zm0-64 220 93v-574H260v574l220-93Zm0-481H260h440-220Z',
+  bookmarkFill: 'm480-240-196 84q-30 13-57-5t-27-50v-574q0-24 18-42t42-18h440q24 0 42 18t18 42v574q0 32-27 50t-57 5l-196-84Z',
+  exploreFill: 'm330-311 213-66q14-5 24-15t15-24l66-213q3-9-3.5-15.5T629-648l-213 66q-14 5-24 15t-15 24l-66 213q-3 9 3.5 15.5T330-311Zm150-129q-17 0-28.5-11.5T440-480q0-17 11.5-28.5T480-520q17 0 28.5 11.5T520-480q0 17-11.5 28.5T480-440Zm0 360q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Z',
+  settingsFill: 'M421-80q-14 0-25-9t-13-23l-15-94q-19-7-40-19t-37-25l-86 40q-14 6-28 1.5T155-226L97-330q-8-13-4.5-27t15.5-23l80-59q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521l-80-59q-12-9-15.5-23t4.5-27l58-104q8-13 22-17.5t28 1.5l86 40q16-13 37-25t40-18l15-95q2-14 13-23t25-9h118q14 0 25 9t13 23l15 94q19 7 40.5 18.5T669-710l86-40q14-6 27.5-1.5T804-734l59 104q8 13 4.5 27.5T852-580l-80 57q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l80 58q12 8 15.5 22.5T863-330l-58 104q-8 13-22 17.5t-28-1.5l-86-40q-16 13-36.5 25.5T592-206l-15 94q-2 14-13 23t-25 9H421Zm59-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z',
+  liveTv: 'm429-379 181-116q14-8.79 14-24.89Q624-536 610-545L429-661q-15-10-30.5-1T383-635v230q0 18 15.5 27t30.5-1ZM140-200q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H630v50q0 12.75-8.62 21.37Q612.75-120 600-120H360q-12.75 0-21.37-8.63Q330-137.25 330-150v-50H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z',
+  contentPaste: 'M180-120q-26 0-43-17t-17-43v-600q0-26 17-43t43-17h202q7-35 34.5-57.5T480-920q36 0 63.5 22.5T578-840h202q26 0 43 17t17 43v600q0 26-17 43t-43 17H180Zm0-60h600v-600h-60v60q0 12.75-8.62 21.37Q702.75-690 690-690H270q-12.75 0-21.37-8.63Q240-707.25 240-720v-60h-60v600Zm328.5-611.5Q520-803 520-820t-11.5-28.5Q497-860 480-860t-28.5 11.5Q440-837 440-820t11.5 28.5Q463-780 480-780t28.5-11.5Z',
+  uploadFile: 'M452-403v171q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63 8.5-8.62 8.5-21.37v-171l61 61q3 3 15-2t22.5-9q10.5-4 14.5-3.5T615-342q9-9 8.5-21t-9.5-21L501-494q-5-5-10.13-7-5.14-2-11-2-5.87 0-10.87 2-5 2-10 7L347-382q-9 9-9 21t9 21.39q9 8.61 21 8.61t21-9l63-63ZM220-80q-24 0-42-18t-18-42v-680q0-24 18-42t42-18h336q12.44 0 23.72 5T599-862l183 183q8 8 13 19.28 5 11.28 5 23.72v496q0 24-18 42t-42 18H220Zm331-584v-156H220v680h520v-494H581q-12.75 0-21.37-8.63Q551-651.25 551-664ZM220-820v186-186 680-680Z',
+  arrowBack: 'm274-450 227 227q9 9 9 21t-9 21q-9 9-21 9t-21-9L181-459q-5-5-7-10t-2-11q0-6 2-11t7-10l278-278q9-9 21-9t21 9q9 9 9 21t-9 21L274-510h496q13 0 21.5 8.5T800-480q0 13-8.5 21.5T770-450H274Z',
+  openInNew: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h249q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H180v600h600v-249q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v249q0 24-18 42t-42 18H180Zm600-617L403-360q-9 9-21 8.5t-21-9.5q-9-9-9-21t9-21l377-377H549q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h261q12.75 0 21.38 8.62Q840-822.75 840-810v261q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-188Z',
+  shuffle: 'M606-160q-13 0-21.5-8.5T576-190q0-13 8.5-21.5T606-220h90L543-372q-9-9-9-21t9-21q9-9 21.5-9.5T586-415l154 153v-91q0-13 8.5-21.5T770-383q13 0 21.5 8.5T800-353v163q0 13-8.5 21.5T770-160H606Zm-436-10q-9-9-9-21t9-21l528-528h-92q-13 0-21.5-8.5T576-770q0-13 8.5-21.5T606-800h164q13 0 21.5 8.5T800-770v163q0 13-8.5 21.5T770-577q-13 0-21.5-8.5T740-607v-90L212-169q-9 9-21 8.5t-21-9.5Zm-1-579q-9-9-9-21.5t9-21.5q9-9 21-9t21 9l205 205q9 9 9.5 21t-8.5 21q-9 9-21.5 9t-21.5-9L169-749Z',
+  refresh: 'M480-160q-133 0-226.5-93.5T160-480q0-133 93.5-226.5T480-800q85 0 149 34.5T740-671v-99q0-13 8.5-21.5T770-800q13 0 21.5 8.5T800-770v194q0 13-8.5 21.5T770-546H576q-13 0-21.5-8.5T546-576q0-13 8.5-21.5T576-606h138q-38-60-97-97t-137-37q-109 0-184.5 75.5T220-480q0 109 75.5 184.5T480-220q75 0 140-39.5T717-366q5-11 16.5-16.5t22.5-.5q12 5 16 16.5t-1 23.5q-39 84-117.5 133.5T480-160Z',
+  sort: 'M150-240q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h180q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Zm0-210q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h420q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Zm0-210q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h660q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Z',
+  filterList: 'M430-240q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h100q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H430ZM270-450q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h420q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H270ZM150-660q-12.75 0-21.37-8.68-8.63-8.67-8.63-21.5 0-12.82 8.63-21.32 8.62-8.5 21.37-8.5h660q12.75 0 21.38 8.68 8.62 8.67 8.62 21.5 0 12.82-8.62 21.32-8.63 8.5-21.38 8.5H150Z',
+  key: 'M232-432q-20-20-20-48t20-48q20-20 48-20t48 20q20 20 20 48t-20 48q-20 20-48 20t-48-20Zm48 192q-100 0-170-70T40-480q0-100 70-170t170-70q72 0 126 34t85 103h344q6 0 11 2t10 7l82 82q5 5 7 10.5t2 11.5q0 6-2.5 11t-7.5 10L812-334q-4 4-9 6t-10 2q-5 0-9.5-1t-9.5-4l-69-50-70 51q-4 3-8.5 4t-9.5 1q-5 0-9.5-1.5T599-331l-57-46h-51q-25 60-78.5 98.5T280-240Zm0-60q58 0 107-38.5t63-98.5h114l54 45q-1 0 0 0h.5-.5l88-63 82 62h-.5.5l85-79 .5.5-.5-.5h.5-.5l-51-51H450q-12-56-60-96.5T280-660q-75 0-127.5 52.5T100-480q0 75 52.5 127.5T280-300Z',
+  cloudDone: 'm413-360-80-80q-8-8-20.5-7.5T292-439q-8 8-8 20.5t8 20.5l99 98q9 9 21 9t21-9l189-189q8-8 8-20t-8-20q-8-8-20-8t-20 8L413-360ZM251-160q-88 0-149.5-61.5T40-371q0-78 50-137t127-71q20-97 94-158.5T482-799q112 0 189 81.5T748-522v24q72-2 122 46.5T920-329q0 69-50 119t-119 50H251Zm0-60h500q45 0 77-32t32-77q0-45-32-77t-77-32h-63v-84q0-91-61-154t-149-63q-88 0-149.5 63T267-522h-19q-62 0-105 43.5T100-371q0 63 44 107t107 44Zm229-260Z',
+  cloudOff: 'M248-171q-88 0-148-59T40-377q0-80 50.5-134T217-577q2-14 6.5-31.5T236-640L91-785q-9-9-9-21t9-21q9-9 21-9t21 9l707 707q9 9 9 21t-9 21q-9 9-21.5 9T797-78l-94-93H248Zm0-60h397L285-591q-11 15-14.5 34t-3.5 37h-19q-62 0-105 39.5t-43 101q0 61.5 43 105T248-231Zm216-181Zm390 210-47-47q25-17 39-38t14-50q0-43-31-73.5T755-441h-67v-81q0-88-61-147.5T478.47-729q-28.47 0-60.97 9T358-691l-42-42q36-29 77.5-42.5T478-789q111 0 190.5 79T748-520v21q72-1 122 45t50 117q0 35-16.5 73.5T854-202ZM583-470Z',
+  download: 'M469-327q-5-2-10-7L308-485q-9-9.27-8.5-21.64.5-12.36 9.11-21.36 9.39-9 21.89-9t21.5 9l98 99v-341q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v341l99-99q8.8-9 20.9-8.5 12.1.5 21.49 9.5 8.61 9 8.61 21.5t-9 21.5L501-334q-5 5-10.13 7-5.14 2-11 2-5.87 0-10.87-2ZM220-160q-24 0-42-18t-18-42v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113h520v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113q0 24-18 42t-42 18H220Z',
+  upload: 'M220-160q-24 0-42-18t-18-42v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113h520v-113q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v113q0 24-18 42t-42 18H220Zm230-524-99 99q-8.8 9-20.9 8.5-12.1-.5-21.49-9.5-8.61-9-8.61-21.5t9-21.5l150-150q5-5 10.13-7 5.14-2 11-2 5.87 0 10.87 2 5 2 10 7l151 151q9 9 9 21t-8.61 21q-9.39 9-21.89 9t-21.5-9l-99-98v341q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-341Z',
+  info: 'M504.5-288.63q8.5-8.62 8.5-21.37v-180q0-12.75-8.68-21.38-8.67-8.62-21.5-8.62-12.82 0-21.32 8.62-8.5 8.63-8.5 21.38v180q0 12.75 8.68 21.37 8.67 8.63 21.5 8.63 12.82 0 21.32-8.63Zm-1-314.57q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
+  wandStars: 'm654-454-91 147q-8 13-22.5 10T522-314l-33-133-306 305q-9 9-21 9t-21-9q-9-9-9-21t9-21l305-305-133-33q-14-4-17-18.5t10-22.5l147-92-12-172q-1-15 12.5-22t24.5 3l132 111 160-64q14-5 24 5t5 24l-65 160 111 132q10 11 3.5 24.5T827-441l-173-13ZM131-721q-5-5-5-11t5-11l46-46q5-5 11-5t11 5l45 45q5 5 5 11t-5 11l-46 46q-5 5-11 5t-11-5l-45-45Zm428 307 63-102 120 9-78-92 45-111-111 45-92-78 9 120-102 64 117 29 29 116Zm163 283-46-46q-5-5-4.5-11t5.5-11l45-45q5-5 11-5t11 5l46 46q5 5 4.5 11t-5.5 11l-45 45q-5 5-11 5t-11-5ZM578-579Z',
+  bolt: 'm393-165 279-335H492l36-286-253 366h154l-36 255Zm-33-195H217q-18 0-26.5-16t2.5-31l338-488q8-11 20-15t24 1q12 5 19 16t5 24l-39 309h176q19 0 27 17t-4 32L388-66q-8 10-20.5 13T344-55q-11-5-17.5-16T322-95l38-265Zm113-115Z',
+  starShine: 'M788.5-362q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM802-811.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9t-21.5-9q-9-9-9-21.5t9-21.5l64-63q9-9 21-9t21 9q9 9 9 21.5ZM188.5-842q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM202-331.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9T87-247q-9-9-9-21t9-21l64-64q9-9 21-9t21 9q9 9 9 21.5ZM323-245l157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm157-240Zm0 216L294-157q-8 5-17 4.5t-16-5.5q-7-5-10.5-13t-1.5-18l49-212-164-143q-8-7-9.5-15.5t.5-16.5q2-8 9-13.5t17-6.5l217-19 84-200q4-9 12-13.5t16-4.5q8 0 16 4.5t12 13.5l84 200 217 19q10 1 17 6.5t9 13.5q2 8 .5 16.5T826-544L662-401l49 212q2 10-1.5 18T699-158q-7 5-16 5.5t-17-4.5L480-269Z',
+  starShineFill: 'M788.5-362q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM802-811.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9t-21.5-9q-9-9-9-21.5t9-21.5l64-63q9-9 21-9t21 9q9 9 9 21.5ZM188.5-842q12.5 0 21.5 9l63 64q9 9 9 21t-9 21q-9 9-21 9t-21-9l-64-63q-9-9-9-21.5t9-21.5q9-9 21.5-9ZM202-331.5q0 12.5-9 21.5l-63 63q-9 9-21.5 9T87-247q-9-9-9-21t9-21l64-64q9-9 21-9t21 9q9 9 9 21.5ZM480-269 294-157q-8 5-17 4.5t-16-5.5q-7-5-10.5-13t-1.5-18l49-212-164-143q-8-7-9.5-15.5t.5-16.5q2-8 9-13.5t17-6.5l217-19 84-200q4-9 12-13.5t16-4.5q8 0 16 4.5t12 13.5l84 200 217 19q10 1 17 6.5t9 13.5q2 8 .5 16.5T826-544L662-401l49 212q2 10-1.5 18T699-158q-7 5-16 5.5t-17-4.5L480-269Z',
+  swipe: 'M291.5-842.5Q202-805 127-740h113q8 0 14 6t6 14q0 8-6 14t-14 6H110q-12.75 0-21.37-8.63Q80-717.25 80-730v-130q0-8 6-14t14-6q8 0 14 6t6 14v73q78-62 169-97.5T480-920q100 0 191 35.5T840-787v-73q0-8 6-14t14-6q8 0 14 6t6 14v130q0 12.75-8.62 21.37Q862.75-700 850-700H720q-8 0-14-6t-6-14q0-8 6-14t14-6h113q-75-65-164.5-102.5T480-880q-99 0-188.5 37.5ZM470-80q-21.88 0-41.94-8T392-112L202-302q-8-8-9-19t5-20l1-1q11-16 28.5-22.5T264-366l96 26v-340q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v381q0 15-12 24t-26 5l-86-23 139.18 139.18Q442-147 451.13-143.5q9.13 3.5 18.87 3.5h170q42 0 71-29t29-71v-180q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62 8.5 8.63 8.5 21.38v180q0 66-47 113T640-80H470Zm68.5-481.38q8.5 8.63 8.5 21.38v140q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-140q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62Zm126 40q8.5 8.63 8.5 21.38v100q0 12.75-8.68 21.37-8.67 8.63-21.5 8.63-12.82 0-21.32-8.63-8.5-8.62-8.5-21.37v-100q0-12.75 8.68-21.38 8.67-8.62 21.5-8.62 12.82 0 21.32 8.62ZM578-265Z'
+};
+function icon(name, cls) {
+  return `<svg class="mi${cls ? ' ' + cls : ''}" viewBox="0 -960 960 960" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
+}
+
+// ── Helpers ────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+function lsGet(k, fallback) {
+  try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
+}
+function lsSet(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+}
+function imgUrl(path, size) { return path ? IMG + size + path : ''; }
+function timeAgo(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago';
+  return Math.round(s / 86400) + ' d ago';
+}
+function fmtRuntime(min) {
+  if (!min) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} h${m ? ' ' + m + ' min' : ''}` : `${m} min`;
+}
+// Run fn over list with at most n in flight.
+async function pool(list, n, fn) {
+  const out = new Array(list.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(n, list.length) }, async () => {
+    while (i < list.length) {
+      const j = i++;
+      try { out[j] = await fn(list[j], j); } catch (e) { out[j] = undefined; }
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+function daysAgo(n) { return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10); }
+
+// ── Persistence ────────────────────────────────────────────
+// One person, one list: plain localStorage keys, no per-account namespacing.
+const saveItems = debounce(() => {
+  lsSet('wl.items', items);
+  lsSet('wl.dirty', [...dirty]);
+}, 250);
+const saveDetails = debounce(() => lsSet('wl.details', details), 1000);
+function savePrefs() { lsSet('wl.prefs', prefs); lsSet('wl.prefsDirty', prefsDirty); }
+
+function loadState() {
+  passcode = lsGet('wl.passcode', '') || '';
+  items = lsGet('wl.items', {}) || {};
+  prefs = Object.assign({ services: [], region: 'US', updatedAt: 0 }, lsGet('wl.prefs', {}));
+  prefsDirty = !!lsGet('wl.prefsDirty', false);
+  dirty = new Set(lsGet('wl.dirty', []));
+  lastSync = lsGet('wl.lastSync', 0) || 0;
+  details = lsGet('wl.details', {}) || {};
+}
+
+// ── View preferences ───────────────────────────────────────
+function loadWlView() { wlView = lsGet('wl.view', 'list') === 'cards' ? 'cards' : 'list'; }
+function setWlView(v) { wlView = v; lsSet('wl.view', v); renderWatchlist(); }
+function loadTonightPrefs() {
+  tonightType = lsGet('wl.tonightType', 'all');
+  tonightMine = lsGet('wl.tonightMine', null);
+}
+function setTonightType(t) { tonightType = t; lsSet('wl.tonightType', t); renderTonightControls(); }
+
+// ── Server API ─────────────────────────────────────────────
+class ApiError extends Error {
+  constructor(msg, status) { super(msg); this.status = status; }
+}
+async function api(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch(path, {
+      ...opts,
+      headers: { 'X-App-Key': passcode, ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) }
+    });
+  } catch (e) {
+    throw new ApiError(navigator.onLine ? "Can't reach the server." : "You're offline.", 0);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) throw new ApiError('Wrong passcode. Check it in Settings.', 401);
+    throw new ApiError(data.error || data.status_message || ('Server error ' + res.status), res.status);
+  }
+  return data;
+}
+
+const tmdbMem = new Map();
+async function tmdb(path, params = {}) {
+  const qs = new URLSearchParams({ language: 'en-US', ...params });
+  const url = '/api/tmdb/' + path + '?' + qs;
+  if (tmdbMem.has(url)) return tmdbMem.get(url);
+  const p = api(url);
+  tmdbMem.set(url, p);
+  p.catch(() => tmdbMem.delete(url));
+  return p;
+}
+
+// Ask Claude for JSON matching `schema`. content is the user turn's blocks.
+async function askClaude({ system, content, schema, effort = 'medium' }) {
+  const r = await api('/api/claude', {
+    method: 'POST',
+    body: JSON.stringify({ system, content, schema, effort })
+  });
+  if (r.stop_reason === 'refusal') throw new ApiError("Claude declined that one. Try rewording it.", 200);
+  if (r.stop_reason === 'max_tokens') throw new ApiError('Claude ran out of room answering. Try fewer photos at once.', 200);
+  try { return JSON.parse(r.text); } catch (e) { throw new ApiError("Claude's answer couldn't be read. Try again.", 200); }
+}
+
+// ── Titles ─────────────────────────────────────────────────
+function genreNames(ids, type) {
+  const map = GENRE_NAMES[type] || {};
+  const out = [];
+  for (const id of ids || []) for (const n of map[id] || []) if (!out.includes(n)) out.push(n);
+  return out;
+}
+// A TMDB search/trending/discover result, in the app's shape.
+function normalize(r, typeHint) {
+  const type = r.media_type === 'tv' || r.media_type === 'movie' ? r.media_type : typeHint;
+  if (type !== 'movie' && type !== 'tv') return null;
+  const date = (type === 'movie' ? r.release_date : r.first_air_date) || '';
+  const ids = r.genre_ids || (r.genres || []).map(g => g.id);
+  const t = {
+    key: type + ':' + r.id,
+    id: r.id,
+    type,
+    title: (type === 'movie' ? r.title : r.name) || r.original_title || r.original_name || 'Untitled',
+    year: date.slice(0, 4),
+    date,
+    poster: r.poster_path || '',
+    backdrop: r.backdrop_path || '',
+    genres: genreNames(ids, type),
+    overview: r.overview || '',
+    vote: Math.round((r.vote_average || 0) * 10) / 10,
+    votes: r.vote_count || 0
+  };
+  titles[t.key] = Object.assign(titles[t.key] || {}, t);
+  return titles[t.key];
+}
+function getTitle(key) { return items[key] || titles[key]; }
+function statusOf(key) { const it = items[key]; return it ? it.status : 'none'; }
+function metaLine(t, withType = true) {
+  const d = details[t.key];
+  const bits = [];
+  if (t.year) bits.push(t.year);
+  if (withType) bits.push(t.type === 'tv' ? 'TV' : 'Movie');
+  if (d && t.type === 'movie' && d.runtime) bits.push(fmtRuntime(d.runtime));
+  if (d && t.type === 'tv' && d.seasons) bits.push(d.seasons + (d.seasons === 1 ? ' season' : ' seasons'));
+  return bits.join(' · ');
+}
+
+// ── Items ──────────────────────────────────────────────────
+// Fields kept for every title the person has acted on. Passed titles keep
+// less: they're only there so the deck skips them and Claude learns from them.
+function baseRecord(t, status) {
+  const r = { key: t.key, id: t.id, type: t.type, title: t.title, year: t.year, genres: t.genres || [], poster: t.poster || '' };
+  if (status !== 'pass') Object.assign(r, { backdrop: t.backdrop || '', overview: t.overview || '', vote: t.vote || 0, date: t.date || '' });
+  return r;
+}
+function setItem(t, patch) {
+  const prev = items[t.key];
+  const now = Date.now();
+  const status = patch.status || (prev && prev.status) || 'none';
+  const it = Object.assign({}, prev || {}, baseRecord(Object.assign({}, prev || {}, t), status), patch, { updatedAt: now });
+  if (status === 'want' && (!prev || prev.status !== 'want') && !patch.addedAt) it.addedAt = now;
+  if (status === 'watched' && (!prev || prev.status !== 'watched') && !patch.watchedAt) it.watchedAt = now;
+  if (!it.source) it.source = patch.source || 'app';
+  items[t.key] = it;
+  dirty.add(t.key);
+  saveItems();
+  scheduleSync();
+  refreshCounts();
+  return it;
+}
+function refreshCounts() {
+  const n = Object.values(items).filter(i => i.status === 'want').length;
+  $('wl-count').textContent = n ? n : '';
+}
+
+// ── Details & where to watch ───────────────────────────────
+function parseProviders(wp) {
+  const r = (wp && wp.results && wp.results[prefs.region]) || null;
+  const pick = list => (list || []).map(p => ({ id: p.provider_id, name: p.provider_name, logo: p.logo_path }));
+  if (!r) return { flat: [], paid: [], link: '' };
+  const flat = [];
+  for (const p of [...pick(r.flatrate), ...pick(r.free), ...pick(r.ads)]) if (!flat.some(f => f.id === p.id)) flat.push(p);
+  const rent = pick(r.rent), buy = pick(r.buy);
+  const paid = [];
+  for (const p of [...rent, ...buy]) if (!paid.some(f => f.id === p.id) && !flat.some(f => f.id === p.id)) paid.push(p);
+  return { flat, paid, link: r.link || '' };
+}
+function detailsFresh(key) {
+  const d = details[key];
+  return d && d.region === prefs.region && Date.now() - d.at < DETAILS_STALE_MS;
+}
+const detailsInflight = new Map();
+async function getDetails(key, force = false) {
+  if (!force && detailsFresh(key)) return details[key];
+  if (detailsInflight.has(key)) return detailsInflight.get(key);
+  const [type, id] = key.split(':');
+  const p = (async () => {
+    const r = await tmdb(`${type}/${id}`, { append_to_response: 'watch/providers,credits' });
+    const crew = (r.credits && r.credits.crew) || [];
+    const d = {
+      at: Date.now(),
+      region: prefs.region,
+      runtime: r.runtime || (r.episode_run_time && r.episode_run_time[0]) || 0,
+      seasons: r.number_of_seasons || 0,
+      episodes: r.number_of_episodes || 0,
+      showStatus: r.status || '',
+      tagline: r.tagline || '',
+      cast: ((r.credits && r.credits.cast) || []).slice(0, 6).map(c => c.name),
+      director: type === 'movie' ? (crew.find(c => c.job === 'Director') || {}).name || '' : (r.created_by || []).map(c => c.name).join(', '),
+      providers: parseProviders(r['watch/providers'])
+    };
+    details[key] = d;
+    saveDetails();
+    // Fill gaps in the title record (search results lack nothing, but a
+    // title imported from a photo or another device may).
+    const t = normalize(r, type);
+    if (t && items[key] && !items[key].backdrop && t.backdrop) { items[key].backdrop = t.backdrop; saveItems(); }
+    return d;
+  })();
+  detailsInflight.set(key, p);
+  try { return await p; } finally { detailsInflight.delete(key); }
+}
+function myProviders(key) {
+  const d = details[key];
+  if (!d || !d.providers) return null;
+  return d.providers.flat.filter(p => prefs.services.includes(p.id));
+}
+// true / false, or null while we don't know yet.
+function onMyServices(key) {
+  const mine = myProviders(key);
+  return mine == null ? null : mine.length > 0;
+}
+let refreshing = false;
+async function refreshStaleDetails(limit = 60) {
+  if (refreshing || !passcode || !navigator.onLine) return;
+  const keys = Object.values(items).filter(i => i.status === 'want' && !detailsFresh(i.key)).map(i => i.key).slice(0, limit);
+  if (!keys.length) return;
+  refreshing = true;
+  const rerender = debounce(() => { if (currentTab === 'watchlist') renderWatchlist(); }, 400);
+  try {
+    await pool(keys, 4, async k => { await getDetails(k); rerender(); });
+  } finally { refreshing = false; }
+}
+
+// ── Sync ───────────────────────────────────────────────────
+const scheduleSync = debounce(() => syncNow(), 1500);
+async function syncNow(manual) {
+  if (!passcode || syncing) return;
+  if (!navigator.onLine) { if (manual) toast("You're offline. Changes will sync when you're back."); return; }
+  syncing = true;
+  renderSyncStatus();
+  const sent = [...dirty];
+  const sentAt = new Map(sent.map(k => [k, items[k] && items[k].updatedAt]));
+  const sentPrefs = prefsDirty;
+  const sentPrefsAt = prefs.updatedAt;
+  try {
+    const r = await api('/api/sync', {
+      method: 'POST',
+      body: JSON.stringify({ since: lastSync, items: sent.map(k => items[k]).filter(Boolean), prefs: sentPrefs ? prefs : null })
+    });
+    let changed = false;
+    const back = new Map((r.items || []).map(x => [x.key, x.updatedAt]));
+    for (const it of r.items || []) {
+      const cur = items[it.key];
+      if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) {
+        delete it.serverAt;
+        items[it.key] = it;
+        changed = true;
+      }
+    }
+    // Clear what was sent, unless it was edited again while the request ran.
+    for (const [k, at] of sentAt) {
+      const cur = items[k];
+      if (!cur || cur.updatedAt === at || back.get(k) === cur.updatedAt) dirty.delete(k);
+    }
+    if (r.prefs && (r.prefs.updatedAt || 0) > (prefs.updatedAt || 0)) {
+      const regionChanged = r.prefs.region !== prefs.region;
+      prefs = { services: r.prefs.services || [], region: r.prefs.region || 'US', updatedAt: r.prefs.updatedAt };
+      if (regionChanged) providerCatalog = null;
+      changed = true;
+    }
+    if (sentPrefs && prefs.updatedAt === sentPrefsAt) prefsDirty = false;
+    savePrefs();
+    lastSync = r.now;
+    lsSet('wl.lastSync', lastSync);
+    lsSet('wl.syncedAt', Date.now());
+    saveItems();
+    syncError = '';
+    if (changed) { refreshCounts(); renderCurrent(); }
+    if (manual) toast('Synced');
+  } catch (e) {
+    syncError = e.message;
+    if (manual) toast(e.message);
+  } finally {
+    syncing = false;
+    renderSyncStatus();
+  }
+}
+function renderSyncStatus() {
+  const el = $('sync-status');
+  if (!el) return;
+  const at = lsGet('wl.syncedAt', 0);
+  el.textContent = syncing ? 'Syncing…' : syncError ? "Couldn't sync" : at ? 'Synced ' + timeAgo(at) : 'Not synced yet';
+  $('sync-sub').textContent = syncError || (dirty.size ? dirty.size + ' change' + (dirty.size === 1 ? '' : 's') + ' waiting' : '');
+}
+
+// ── Tabs ───────────────────────────────────────────────────
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  lsSet('wl.tab', name);
+  document.body.className = document.body.className.replace(/\btab-\w+/g, '').trim() + ' tab-' + name;
+  renderCurrent();
+  if (name === 'watchlist') refreshStaleDetails();
+}
+function renderCurrent() {
+  if (currentTab === 'discover') renderDeck();
+  else if (currentTab === 'watchlist') renderWatchlist();
+  else if (currentTab === 'tonight') renderTonightControls();
+  else if (currentTab === 'settings') renderSettings();
+}
+
+// ── Discover: the deck ─────────────────────────────────────
+function renderDeckChips() {
+  document.querySelectorAll('#deck-chips [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === deckFilters.mode));
+  $('deck-type').value = deckFilters.type;
+  $('deck-type').classList.toggle('on', deckFilters.type !== 'all');
+  $('deck-genre').value = deckFilters.genre;
+  $('deck-genre').classList.toggle('on', !!deckFilters.genre);
+  $('deck-mine').classList.toggle('on', deckFilters.mine);
+}
+function setDeckMode(mode) {
+  if (deckFilters.mode === mode && mode !== 'ai') return;
+  deckFilters.mode = mode;
+  resetDeck();
+}
+function setDeckFilter(k, v) {
+  if (k === 'mine' && v && !prefs.services.length) {
+    toast('Pick your streaming services first', 'Settings', () => switchTab('settings'));
+    return;
+  }
+  deckFilters[k] = v;
+  lsSet('wl.deckFilters', { type: deckFilters.type, genre: deckFilters.genre, mine: deckFilters.mine });
+  resetDeck();
+}
+function resetDeck() {
+  deckGen++;
+  deck = [];
+  deckKeys = new Set();
+  deckPage = 0;
+  deckDone = false;
+  deckError = '';
+  deckLoading = false;
+  renderDeckChips();
+  renderDeck();
+  fillDeck();
+}
+// Whether a deck candidate should be shown at all.
+function deckWants(t) {
+  if (!t || !t.poster || deckKeys.has(t.key)) return false;
+  const st = statusOf(t.key);
+  if (st !== 'none') return false;
+  if (deckFilters.type !== 'all' && t.type !== deckFilters.type) return false;
+  // Claude was told the genre; TMDB's tags for its picks may not say it.
+  if (deckFilters.genre && deckFilters.mode !== 'ai' && !t.genres.includes(deckFilters.genre)) return false;
+  return true;
+}
+function deckTypes() {
+  const g = GENRES.find(x => x[0] === deckFilters.genre);
+  let types = deckFilters.type === 'all' ? ['movie', 'tv'] : [deckFilters.type];
+  if (g) types = types.filter(t => (t === 'movie' ? g[1] : g[2]));
+  return types;
+}
+function discoverParams(type, page) {
+  const p = { page, include_adult: 'false', sort_by: 'popularity.desc' };
+  const g = GENRES.find(x => x[0] === deckFilters.genre);
+  if (g) p.with_genres = type === 'movie' ? g[1] : g[2];
+  if (deckFilters.mode === 'top') {
+    p.sort_by = 'vote_average.desc';
+    p['vote_count.gte'] = type === 'movie' ? 1500 : 400;
+  } else if (deckFilters.mode === 'new') {
+    const k = type === 'movie' ? 'primary_release_date' : 'first_air_date';
+    p[k + '.gte'] = daysAgo(type === 'movie' ? 150 : 120);
+    p[k + '.lte'] = today();
+    p['vote_count.gte'] = 20;
+  }
+  if (deckFilters.mine && prefs.services.length) {
+    p.watch_region = prefs.region;
+    p.with_watch_providers = prefs.services.join('|');
+    p.with_watch_monetization_types = 'flatrate|free|ads';
+  }
+  return p;
+}
+async function fillDeck() {
+  if (deckLoading || deckDone || !passcode) return;
+  if (deck.length >= 6) return;
+  const gen = deckGen;
+  deckLoading = true;
+  deckError = '';
+  renderDeck();
+  try {
+    let added = 0, tries = 0;
+    while (deck.length < 10 && !deckDone && tries < 4 && gen === deckGen) {
+      tries++;
+      const batch = deckFilters.mode === 'ai' ? await aiSuggestions() : await fetchDeckPage();
+      if (gen !== deckGen) return;
+      for (const t of batch) if (deckWants(t)) { deck.push(t); deckKeys.add(t.key); added++; }
+      if (deckFilters.mode === 'ai') deckDone = true;   // one Claude call per tap of "For you"
+    }
+  } catch (e) {
+    if (gen === deckGen) deckError = e.message;
+  } finally {
+    if (gen === deckGen) { deckLoading = false; renderDeck(); }
+  }
+}
+async function fetchDeckPage() {
+  deckPage++;
+  const types = deckTypes();
+  if (!types.length) { deckDone = true; return []; }
+  if (deckFilters.mode === 'trending' && !deckFilters.genre && !deckFilters.mine) {
+    const path = deckFilters.type === 'all' ? 'trending/all/week' : `trending/${deckFilters.type}/week`;
+    const r = await tmdb(path, { page: deckPage });
+    if (deckPage >= (r.total_pages || 1) || deckPage >= 20) deckDone = true;
+    return (r.results || []).map(x => normalize(x, deckFilters.type)).filter(Boolean);
+  }
+  const pages = await Promise.all(types.map(t => tmdb('discover/' + t, discoverParams(t, deckPage)).then(r => ({ t, r }))));
+  if (pages.every(({ r }) => deckPage >= (r.total_pages || 1)) || deckPage >= 20) deckDone = true;
+  // Interleave movies and shows so neither crowds the other out.
+  const lists = pages.map(({ t, r }) => (r.results || []).map(x => normalize(x, t)).filter(Boolean));
+  const out = [];
+  for (let i = 0; lists.some(l => i < l.length); i++) for (const l of lists) if (l[i]) out.push(l[i]);
+  return out;
+}
+
+function cardHtml(t, behind) {
+  const mine = myProviders(t.key);
+  let provs = '';
+  if (mine && mine.length) provs = mine.slice(0, 5).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" title="${esc(p.name)}">`).join('');
+  else if (mine && prefs.services.length) provs = '<span class="prov-note">Not on your services</span>';
+  return `<div class="swipe-card${behind ? ' behind' : ''}" data-key="${esc(t.key)}">
+    ${t.poster ? `<img class="poster" src="${imgUrl(t.poster, 'w500')}" alt="" draggable="false">` : `<div class="no-poster">${esc(t.title)}</div>`}
+    <span class="type-badge">${icon(t.type === 'tv' ? 'tv' : 'movie')}${t.type === 'tv' ? 'TV' : 'Movie'}</span>
+    <span class="stamp want">WANT</span><span class="stamp pass">NOPE</span><span class="stamp seen">SEEN</span>
+    <div class="card-info">
+      ${t.aiReason ? `<div class="ai-reason">${icon('wandStars')}<span>${esc(t.aiReason)}</span></div>` : ''}
+      <div class="card-title">${esc(t.title)}</div>
+      <div class="card-meta">
+        <span>${esc(metaLine(t, false))}</span>
+        ${t.vote ? `<span class="rating">${icon('star')}${t.vote.toFixed(1)}</span>` : ''}
+        ${t.genres.length ? `<span>${esc(t.genres.slice(0, 3).join(', '))}</span>` : ''}
+      </div>
+      <div class="card-overview">${esc(t.overview)}</div>
+      <div class="card-provs">${provs}</div>
+    </div>
+  </div>`;
+}
+function renderDeck() {
+  const el = $('deck');
+  $('btn-undo').disabled = !undoStack.length;
+  if (!passcode) { el.innerHTML = ''; return; }
+  if (!deck.length) {
+    if (deckLoading) {
+      el.innerHTML = `<div class="deck-empty"><div class="spinner"></div><div>${deckFilters.mode === 'ai' ? 'Claude is picking titles for you…' : 'Loading…'}</div></div>`;
+    } else if (deckError) {
+      el.innerHTML = `<div class="deck-empty">${icon('cloudOff')}<div>${esc(deckError)}</div><button class="btn tonal" onclick="resetDeck()">${icon('refresh')}Try again</button></div>`;
+    } else if (deckFilters.mode === 'ai') {
+      el.innerHTML = `<div class="deck-empty">${icon('wandStars')}<div>${deckDone ? "That's all of this batch." : 'Claude suggests titles from what you like.'}</div><button class="btn filled" onclick="setDeckMode('ai')">${icon('wandStars')}${deckDone ? 'More picks' : 'Get picks'}</button></div>`;
+    } else {
+      el.innerHTML = `<div class="deck-empty">${icon('check')}<div>You've seen everything here. Try another filter.</div></div>`;
+    }
+    return;
+  }
+  el.innerHTML = (deck[1] ? cardHtml(deck[1], true) : '') + cardHtml(deck[0], false);
+  const top = el.querySelector('.swipe-card:not(.behind)');
+  attachDrag(top, deck[0]);
+  ensureCardProviders(deck[0]);
+  if (deck[1]) ensureCardProviders(deck[1]);
+  if (deck.length < 6 && !deckError) fillDeck();
+}
+// Look up where the card's title streams, then redraw just its logos.
+async function ensureCardProviders(t) {
+  if (!prefs.services.length || detailsFresh(t.key)) return;
+  try { await getDetails(t.key); } catch (e) { return; }
+  const card = document.querySelector(`.swipe-card[data-key="${CSS.escape(t.key)}"]`);
+  if (!card) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = cardHtml(t, false);
+  card.querySelector('.card-provs').innerHTML = tmp.querySelector('.card-provs').innerHTML;
+  card.querySelector('.card-meta span').textContent = metaLine(t, false);
+}
+
+function attachDrag(el, t) {
+  let id = null, sx = 0, sy = 0, dx = 0, dy = 0, moved = false;
+  const stamps = { want: el.querySelector('.stamp.want'), pass: el.querySelector('.stamp.pass'), seen: el.querySelector('.stamp.seen') };
+  const showStamps = () => {
+    stamps.want.style.opacity = Math.max(0, Math.min(1, dx / 100));
+    stamps.pass.style.opacity = Math.max(0, Math.min(1, -dx / 100));
+    stamps.seen.style.opacity = Math.abs(dy) > Math.abs(dx) ? Math.max(0, Math.min(1, -dy / 110)) : 0;
+  };
+  el.addEventListener('pointerdown', e => {
+    if (e.button) return;
+    id = e.pointerId; sx = e.clientX; sy = e.clientY; dx = dy = 0; moved = false;
+    el.setPointerCapture(id);
+    el.classList.remove('settle');
+    el.style.cursor = 'grabbing';
+  });
+  el.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    dx = e.clientX - sx; dy = e.clientY - sy;
+    if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
+    el.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 20}deg)`;
+    showStamps();
+  });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null;
+    el.style.cursor = '';
+    if (e.type === 'pointerup' && !moved) { openDetail(t.key); settle(); return; }
+    if (dx > 100) return decide('want', el);
+    if (dx < -100) return decide('pass', el);
+    if (dy < -110 && Math.abs(dy) > Math.abs(dx)) return decide('seen', el);
+    settle();
+  };
+  const settle = () => {
+    el.classList.add('settle');
+    el.style.transform = '';
+    dx = dy = 0;
+    showStamps();
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+}
+function flyOff(el, action) {
+  return new Promise(res => {
+    if (!el) return res();
+    const w = window.innerWidth;
+    const to = action === 'want' ? `translate(${w}px, 40px) rotate(24deg)` : action === 'pass' ? `translate(${-w}px, 40px) rotate(-24deg)` : `translate(0, ${-window.innerHeight}px)`;
+    el.classList.remove('settle');
+    el.classList.add('fly');
+    const s = el.querySelector('.stamp.' + action);
+    if (s) s.style.opacity = 1;
+    requestAnimationFrame(() => { el.style.transform = to; el.style.opacity = '0.6'; });
+    setTimeout(res, 280);
+  });
+}
+function topCardEl() { return document.querySelector('#deck .swipe-card:not(.behind)'); }
+function decideTop(action) { if (deck.length) decide(action, topCardEl()); }
+function openTopDetail() { if (deck.length) openDetail(deck[0].key); }
+
+async function decide(action, el) {
+  const t = deck[0];
+  if (!t) return;
+  await flyOff(el, action);
+  if (deck[0] !== t) return;
+  deck.shift();
+  if (action === 'seen') {
+    renderDeck();
+    openRateSheet(t, rating => {
+      recordDecision(t, { status: 'watched', myRating: rating, source: 'swipe' });
+    }, () => { deck.unshift(t); renderDeck(); });
+    return;
+  }
+  recordDecision(t, action === 'want' ? { status: 'want', source: deckFilters.mode === 'ai' ? 'ai' : 'swipe', aiReason: t.aiReason || '' } : { status: 'pass' });
+  renderDeck();
+}
+function recordDecision(t, patch) {
+  const prev = items[t.key] ? JSON.parse(JSON.stringify(items[t.key])) : null;
+  undoStack.push({ t, prev });
+  if (undoStack.length > 30) undoStack.shift();
+  setItem(t, patch);
+  $('btn-undo').disabled = false;
+}
+function undoDecision() {
+  const u = undoStack.pop();
+  if (!u) return;
+  if (u.prev) setItem(u.t, { ...u.prev });
+  else setItem(u.t, { status: 'none', myRating: null });
+  deck.unshift(u.t);
+  deckKeys.add(u.t.key);
+  if (currentTab === 'discover') renderDeck();
+}
+
+// ── Discover: Claude's picks ───────────────────────────────
+function titleLine(i) { return `${i.title}${i.year ? ' (' + i.year + ')' : ''} [${i.type === 'tv' ? 'TV' : 'movie'}]`; }
+function tasteProfile(withLists = true) {
+  const all = Object.values(items);
+  const by = f => all.filter(f).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const loved = by(i => i.status === 'watched' && i.myRating === 2).slice(0, 60);
+  const liked = by(i => i.status === 'watched' && i.myRating === 1).slice(0, 60);
+  const disliked = by(i => i.status === 'watched' && i.myRating === -1).slice(0, 40);
+  const want = by(i => i.status === 'want').slice(0, 80);
+  const passed = by(i => i.status === 'pass').slice(0, 60);
+  const sec = (h, list) => list.length ? `${h}:\n${list.map(titleLine).join('\n')}` : '';
+  return [
+    sec('Watched and loved', loved),
+    sec('Watched and liked', liked),
+    sec('Watched and disliked', disliked),
+    withLists ? sec('On their watchlist (want to watch)', want) : '',
+    withLists ? sec('Swiped past (not interested, most recent first)', passed) : ''
+  ].filter(Boolean).join('\n\n');
+}
+function serviceNames() {
+  if (!providerCatalog) return prefs.services.map(String);
+  return prefs.services.map(id => (providerCatalog.list.find(p => p.id === id) || { name: '#' + id }).name);
+}
+const SUGGEST_SCHEMA = {
+  type: 'object',
+  properties: {
+    suggestions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          year: { type: 'integer' },
+          type: { type: 'string', enum: ['movie', 'tv'] },
+          reason: { type: 'string' }
+        },
+        required: ['title', 'year', 'type', 'reason'],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ['suggestions'],
+  additionalProperties: false
+};
+async function aiSuggestions() {
+  const taste = tasteProfile();
+  const asks = [];
+  if (deckFilters.type !== 'all') asks.push(deckFilters.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
+  if (deckFilters.genre) asks.push(`Only ${deckFilters.genre} titles.`);
+  if (deckFilters.mine && prefs.services.length) asks.push(`Prefer titles streaming in ${prefs.region} on: ${serviceNames().join(', ')}.`);
+  const known = Object.values(items).filter(i => i.status !== 'none').length;
+  const r = await askClaude({
+    effort: 'medium',
+    schema: SUGGEST_SCHEMA,
+    system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
+      'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
+      'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
+      'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
+    content: [{
+      type: 'text',
+      text: (taste || 'They have not rated anything yet. Suggest a varied set of widely loved, recent titles.') +
+        `\n\nSuggest 20 titles.${asks.length ? ' ' + asks.join(' ') : ''}` +
+        (known > 300 ? '\n(Their lists above are trimmed to the most recent entries; they have more.)' : '')
+    }]
+  });
+  const resolved = await pool(r.suggestions || [], 5, async s => {
+    const t = await resolveTitle(s);
+    if (t) t.aiReason = s.reason;
+    return t;
+  });
+  let out = resolved.filter(Boolean);
+  if (deckFilters.mine && prefs.services.length) {
+    await pool(out, 5, t => getDetails(t.key));
+    out = out.filter(t => onMyServices(t.key) !== false);
+  }
+  return out;
+}
+// Find a title Claude named (or read from a photo) on TMDB.
+async function resolveTitle({ title, year, type }) {
+  const q = String(title || '').trim();
+  if (!q) return null;
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const best = (results, t) => {
+    const list = (results || []).map(r => normalize(r, t)).filter(Boolean);
+    return list.find(x => norm(x.title) === norm(q) && (!year || Math.abs(Number(x.year) - year) <= 1)) ||
+      list.find(x => norm(x.title) === norm(q)) || list[0] || null;
+  };
+  if (type === 'movie' || type === 'tv') {
+    const yk = type === 'movie' ? 'year' : 'first_air_date_year';
+    let r = await tmdb('search/' + type, year ? { query: q, [yk]: year } : { query: q });
+    if (!(r.results || []).length && year) r = await tmdb('search/' + type, { query: q });
+    if ((r.results || []).length) return best(r.results, type);
+  }
+  const r = await tmdb('search/multi', { query: q });
+  return best((r.results || []).filter(x => x.media_type === 'movie' || x.media_type === 'tv'));
+}
+
+// ── Watchlist ──────────────────────────────────────────────
+function setWlFilter(k, v) {
+  if (k === 'mine' && v && !prefs.services.length) {
+    toast('Pick your streaming services first', 'Settings', () => switchTab('settings'));
+    return;
+  }
+  if (k === 'genre') { wlFilters.genres.has(v) ? wlFilters.genres.delete(v) : wlFilters.genres.add(v); }
+  else wlFilters[k] = v;
+  lsSet('wl.wlFilters', { ...wlFilters, genres: [...wlFilters.genres] });
+  renderWatchlist();
+  if (k === 'mine' && v) refreshStaleDetails(200);
+}
+function loadWlFilters() {
+  const f = lsGet('wl.wlFilters', null);
+  if (f) wlFilters = { ...wlFilters, ...f, genres: new Set(f.genres || []) };
+}
+function wlFiltered() {
+  const f = wlFilters;
+  let list = Object.values(items).filter(i => i.status === f.status);
+  const pool0 = list;
+  if (f.type !== 'all') list = list.filter(i => i.type === f.type);
+  if (f.genres.size) list = list.filter(i => (i.genres || []).some(g => f.genres.has(g)));
+  let unknown = 0;
+  if (f.mine) list = list.filter(i => { const m = onMyServices(i.key); if (m == null) unknown++; return m === true; });
+  const rt = i => (details[i.key] && details[i.key].runtime) || 9999;
+  const sorters = {
+    added: (a, b) => ((f.status === 'watched' ? b.watchedAt : b.addedAt) || 0) - ((f.status === 'watched' ? a.watchedAt : a.addedAt) || 0),
+    oldest: (a, b) => ((f.status === 'watched' ? a.watchedAt : a.addedAt) || 0) - ((f.status === 'watched' ? b.watchedAt : b.addedAt) || 0),
+    rating: (a, b) => (b.vote || 0) - (a.vote || 0),
+    runtime: (a, b) => rt(a) - rt(b),
+    release: (a, b) => String(b.date || b.year || '').localeCompare(String(a.date || a.year || '')),
+    title: (a, b) => a.title.localeCompare(b.title)
+  };
+  list.sort(sorters[f.sort] || sorters.added);
+  return { list, pool: pool0, unknown };
+}
+function renderWlChips(poolList) {
+  const f = wlFilters;
+  const present = new Set();
+  for (const i of poolList) for (const g of i.genres || []) present.add(g);
+  const genres = GENRES.map(g => g[0]).filter(g => present.has(g) || f.genres.has(g));
+  $('wl-chips').innerHTML =
+    `<select class="chip${f.type !== 'all' ? ' on' : ''}" onchange="setWlFilter('type', this.value)" aria-label="Movies or TV">
+      <option value="all"${f.type === 'all' ? ' selected' : ''}>Movies &amp; TV</option>
+      <option value="movie"${f.type === 'movie' ? ' selected' : ''}>Movies</option>
+      <option value="tv"${f.type === 'tv' ? ' selected' : ''}>TV shows</option>
+    </select>
+    <button class="chip${f.mine ? ' on' : ''}" onclick="setWlFilter('mine', ${!f.mine})">${icon('liveTv')}My services</button>
+    ${genres.length ? '<span class="chip-sep"></span>' : ''}
+    ${genres.map(g => `<button class="chip${f.genres.has(g) ? ' on' : ''}" onclick="setWlFilter('genre', '${esc(g)}')">${f.genres.has(g) ? icon('check') : ''}${esc(g)}</button>`).join('')}`;
+}
+function ratingIcon(r) {
+  if (r === 2) return `<span class="my-rating pos" title="Loved it">${icon('favoriteFill')}</span>`;
+  if (r === 1) return `<span class="my-rating pos" title="Liked it">${icon('thumbUp')}</span>`;
+  if (r === -1) return `<span class="my-rating neg" title="Not for me">${icon('thumbDown')}</span>`;
+  return '';
+}
+function miniProvs(key) {
+  const mine = myProviders(key);
+  if (!mine || !mine.length) return '';
+  return `<div class="mini-provs">${mine.slice(0, 4).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy">`).join('')}</div>`;
+}
+function renderWatchlist() {
+  const f = wlFilters;
+  $('wl-st-want').classList.toggle('on', f.status === 'want');
+  $('wl-st-watched').classList.toggle('on', f.status === 'watched');
+  $('wl-view-list').classList.toggle('on', wlView === 'list');
+  $('wl-view-cards').classList.toggle('on', wlView === 'cards');
+  $('wl-sort').value = f.sort;
+  const { list, pool: poolList, unknown } = wlFiltered();
+  renderWlChips(poolList);
+  const body = $('wl-body');
+  $('screen-watchlist').classList.toggle('cards', wlView === 'cards' && list.length > 0);
+  if (!poolList.length) {
+    body.className = 'wl-body scroll';
+    body.innerHTML = f.status === 'want'
+      ? `<div class="empty-state">${icon('bookmark')}<h3>Nothing on your list yet</h3><div>Swipe right in Discover, search for a title, or import a screenshot of a list.</div><button class="btn filled" onclick="switchTab('discover')">${icon('explore')}Start swiping</button></div>`
+      : `<div class="empty-state">${icon('visibility')}<h3>Nothing watched yet</h3><div>Mark titles as watched, or swipe up on ones you've already seen, so Claude learns what you like.</div></div>`;
+    return;
+  }
+  const note = unknown ? `<div class="busy-row small" style="padding:0 16px 8px"><div class="spinner small"></div>Checking where ${unknown} more ${unknown === 1 ? 'title streams' : 'titles stream'}…</div>` : '';
+  if (!list.length) {
+    body.className = 'wl-body scroll';
+    body.innerHTML = note + `<div class="empty-state">${icon('filterList')}<h3>No matches</h3><div>Nothing here fits these filters.</div></div>`;
+    return;
+  }
+  if (wlView === 'cards') {
+    body.className = 'wl-body';
+    body.innerHTML = note + `<div class="slide-count" id="slide-count">1 of ${list.length}</div>
+      <div class="wl-carousel" id="wl-carousel">${list.map(i => `
+        <button class="wl-slide" onclick="openDetail('${esc(i.key)}')">
+          ${i.poster ? `<img class="poster" src="${imgUrl(i.poster, 'w500')}" alt="" loading="lazy">` : `<div class="no-poster">${esc(i.title)}</div>`}
+          <span class="type-badge">${icon(i.type === 'tv' ? 'tv' : 'movie')}${i.type === 'tv' ? 'TV' : 'Movie'}</span>
+          <div class="card-info">
+            ${i.aiReason ? `<div class="ai-reason">${icon('wandStars')}<span>${esc(i.aiReason)}</span></div>` : ''}
+            <div class="card-title">${esc(i.title)}</div>
+            <div class="card-meta"><span>${esc(metaLine(i, false))}</span>${i.vote ? `<span class="rating">${icon('star')}${Number(i.vote).toFixed(1)}</span>` : ''}${(i.genres || []).length ? `<span>${esc(i.genres.slice(0, 3).join(', '))}</span>` : ''}</div>
+            <div class="card-overview">${esc(i.overview || '')}</div>
+            <div class="card-provs">${(myProviders(i.key) || []).slice(0, 5).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" loading="lazy">`).join('')}</div>
+          </div>
+        </button>`).join('')}</div>`;
+    const car = $('wl-carousel');
+    // A mouse wheel scrolls up and down; turn each notch into one card along.
+    let wheelAt = 0;
+    car.addEventListener('wheel', e => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      if (Date.now() - wheelAt < 350) return;
+      wheelAt = Date.now();
+      const slide = car.querySelector('.wl-slide');
+      car.scrollBy({ left: Math.sign(e.deltaY) * (slide.offsetWidth + 12), behavior: 'smooth' });
+    }, { passive: false });
+    car.addEventListener('scroll', debounce(() => {
+      const slide = car.querySelector('.wl-slide');
+      if (!slide) return;
+      const idx = Math.round(car.scrollLeft / (slide.offsetWidth + 12));
+      $('slide-count').textContent = `${Math.min(list.length, idx + 1)} of ${list.length}`;
+    }, 60));
+    return;
+  }
+  body.className = 'wl-body scroll';
+  body.innerHTML = note + `<div class="wl-list">${list.map(i => `
+    <button class="wl-row" onclick="openDetail('${esc(i.key)}')">
+      ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="" loading="lazy">` : '<span class="thumb"></span>'}
+      <span class="txt">
+        <span class="t">${esc(i.title)}</span>
+        <span class="m">${esc(metaLine(i))}${i.vote ? ' · ★ ' + Number(i.vote).toFixed(1) : ''}</span>
+        <span class="g">${esc((i.genres || []).join(', '))}</span>
+        ${miniProvs(i.key)}
+      </span>
+      ${ratingIcon(i.myRating)}
+    </button>`).join('')}</div>`;
+}
+
+// ── Title detail ───────────────────────────────────────────
+function openDetail(key) {
+  const t = getTitle(key);
+  if (!t) return;
+  renderDetail(key);
+  if (passcode) getDetails(key).then(() => { if (sheetOpen && $('sheet').dataset.key === key) renderDetail(key); }).catch(e => {
+    const w = $('where-to-watch');
+    if (w && $('sheet').dataset.key === key) w.innerHTML = `<div class="muted">${esc(e.message)}</div>`;
+  });
+}
+function provChips(list, cls) {
+  return `<div class="prov-list">${list.map(p => `<span class="prov-chip ${cls || ''}"><img src="${imgUrl(p.logo, 'w92')}" alt="">${esc(p.name)}</span>`).join('')}</div>`;
+}
+function whereToWatchHtml(key) {
+  const d = details[key];
+  if (!d || d.region !== prefs.region) return `<div class="busy-row"><div class="spinner small"></div>Checking where it's streaming…</div>`;
+  const pv = d.providers || { flat: [], paid: [] };
+  const mine = pv.flat.filter(p => prefs.services.includes(p.id));
+  const other = pv.flat.filter(p => !prefs.services.includes(p.id));
+  let h = '';
+  if (mine.length) h += `<div><div class="small muted" style="margin-bottom:6px">On your services</div>${provChips(mine, 'mine')}</div>`;
+  if (other.length) h += `<div><div class="small muted" style="margin-bottom:6px">${mine.length ? 'Also streaming on' : 'Streaming on'}</div>${provChips(other)}</div>`;
+  if ((pv.paid || []).length) h += `<div><div class="small muted" style="margin-bottom:6px">Rent or buy</div>${provChips(pv.paid.slice(0, 8))}</div>`;
+  if (!h) h = `<div class="muted">Not streaming in ${esc(regionName(prefs.region))} right now.</div>`;
+  h += `<div class="small muted">Updated ${timeAgo(d.at)} · from JustWatch${pv.link ? ` · <a href="${esc(pv.link)}" target="_blank" rel="noopener" style="color:var(--primary)">all options</a>` : ''}</div>`;
+  return `<div style="display:flex;flex-direction:column;gap:12px">${h}</div>`;
+}
+function detailActions(key) {
+  const st = statusOf(key);
+  const it = items[key];
+  if (st === 'want') return `<div class="btn-row">
+      <button class="btn filled" onclick="showRateRow()">${icon('check')}Mark watched</button>
+      <button class="btn danger" onclick="removeFromList('${esc(key)}')">${icon('delete')}Remove</button>
+    </div><div id="rate-area" hidden>${rateRowHtml(key, null)}</div>`;
+  if (st === 'watched') return `<div><div class="sec-title">How was it?</div>${rateRowHtml(key, it.myRating)}</div>
+    <div class="btn-row"><button class="btn outlined" onclick="detailSet('${esc(key)}', {status:'want'}, 'Back on your watchlist')">${icon('bookmark')}Back to watchlist</button></div>`;
+  return `<div class="btn-row">
+      <button class="btn filled" onclick="detailSet('${esc(key)}', {status:'want', source:'search'}, 'Added to watchlist')">${icon('add')}Add to watchlist</button>
+      <button class="btn tonal" onclick="showRateRow()">${icon('visibility')}Seen it</button>
+      ${st !== 'pass' ? `<button class="btn" onclick="detailSet('${esc(key)}', {status:'pass'}, 'Hidden from Discover')">Not interested</button>` : ''}
+    </div><div id="rate-area" hidden>${rateRowHtml(key, null)}</div>`;
+}
+function rateRowHtml(key, cur) {
+  const b = (r, ic, label) => `<button class="btn tonal${cur === r ? ' on' : ''}" onclick="detailSet('${esc(key)}', {status:'watched', myRating:${r}}, 'Marked watched')">${icon(ic)}${label}</button>`;
+  return `<div class="rate-row">${b(2, 'favoriteFill', 'Loved it')}${b(1, 'thumbUp', 'Liked it')}${b(-1, 'thumbDown', 'Not for me')}</div>`;
+}
+function showRateRow() { const a = $('rate-area'); if (a) a.hidden = false; }
+function detailSet(key, patch, msg) {
+  const t = getTitle(key);
+  if (!t) return;
+  const prev = items[key] ? JSON.parse(JSON.stringify(items[key])) : null;
+  setItem(t, patch);
+  // A title acted on from the sheet shouldn't come round again in the deck.
+  if (deck[0] && deck[0].key === key && patch.status !== 'none') { deck.shift(); }
+  closeSheet();
+  renderCurrent();
+  toast(msg, 'Undo', () => {
+    if (prev) setItem(t, { ...prev }); else setItem(t, { status: 'none', myRating: null });
+    renderCurrent();
+  });
+}
+function removeFromList(key) { detailSet(key, { status: 'pass' }, 'Removed from watchlist'); }
+function renderDetail(key) {
+  const t = getTitle(key);
+  const d = details[key];
+  const it = items[key];
+  const people = d && (d.director || (d.cast || []).length)
+    ? `<div class="small muted">${d.director ? `${t.type === 'tv' ? 'Created by' : 'Directed by'} ${esc(d.director)}<br>` : ''}${(d.cast || []).length ? 'With ' + esc(d.cast.join(', ')) : ''}</div>` : '';
+  const tvBits = d && t.type === 'tv' && d.episodes ? ` · ${d.episodes} episodes${d.showStatus ? ' · ' + esc(d.showStatus) : ''}` : '';
+  openSheet(`
+    <div class="sheet-body scroll" style="padding-top:0">
+      <div class="detail-hero">
+        ${t.backdrop ? `<img class="backdrop" src="${imgUrl(t.backdrop, 'w780')}" alt="">` : ''}
+        <button class="icon-btn" onclick="closeSheet()" aria-label="Close">${icon('close')}</button>
+      </div>
+      <div class="detail-top">
+        ${t.poster ? `<img class="poster" src="${imgUrl(t.poster, 'w342')}" alt="">` : '<span class="poster"></span>'}
+        <div>
+          <h2>${esc(t.title)}</h2>
+          <div class="m">${esc(metaLine(t))}${tvBits}${t.vote ? ' · ★ ' + Number(t.vote).toFixed(1) : ''}</div>
+        </div>
+      </div>
+      ${(t.genres || []).length ? `<div class="genre-chips">${t.genres.map(g => `<span>${esc(g)}</span>`).join('')}</div>` : ''}
+      ${it && it.aiReason && it.status === 'want' ? `<div class="ai-note">${icon('wandStars')}<span>${esc(it.aiReason)}</span></div>` : t.aiReason ? `<div class="ai-note">${icon('wandStars')}<span>${esc(t.aiReason)}</span></div>` : ''}
+      ${detailActions(key)}
+      ${d && d.tagline ? `<div class="tagline">${esc(d.tagline)}</div>` : ''}
+      ${t.overview ? `<div>${esc(t.overview)}</div>` : ''}
+      ${people}
+      <div><div class="sec-title">Where to watch</div><div id="where-to-watch">${whereToWatchHtml(key)}</div></div>
+    </div>`, { key });
+}
+
+// The "seen it" swipe: how was it?
+function openRateSheet(t, onRate, onCancel) {
+  let rated = false;
+  openSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>You've seen ${esc(t.title)}</h2></div>
+    <div class="sheet-body">
+      <div class="muted">How was it? Claude uses this to suggest things you'll like.</div>
+      <div class="rate-row" style="flex-direction:column">
+        <button class="btn tonal wide" data-r="2">${icon('favoriteFill')}Loved it</button>
+        <button class="btn tonal wide" data-r="1">${icon('thumbUp')}Liked it</button>
+        <button class="btn tonal wide" data-r="-1">${icon('thumbDown')}Not for me</button>
+      </div>
+    </div>`, { onClose: () => { if (!rated && onCancel) onCancel(); } });
+  $('sheet').querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
+    rated = true;
+    onRate(Number(b.dataset.r));
+    closeSheet();
+  });
+}
+
+// ── Add: search and import ─────────────────────────────────
+function openAddSheet() {
+  openSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Add titles</h2><button class="icon-btn" onclick="closeSheet()" aria-label="Close">${icon('close')}</button></div>
+    <div class="sheet-body" style="padding-bottom:12px">
+      <input class="text-input" id="add-q" type="search" placeholder="Search movies and shows" autocomplete="off" enterkeyhint="search">
+      <div class="import-opts">
+        <button class="import-opt" onclick="pickPhotos()">${icon('photoCamera')}Photo or screenshot</button>
+        <button class="import-opt" onclick="openPasteSheet()">${icon('contentPaste')}Paste a list</button>
+        <button class="import-opt" onclick="pickListFile()">${icon('uploadFile')}Import a file</button>
+      </div>
+    </div>
+    <div class="sheet-body scroll" id="add-results" style="flex:1;min-height:120px;gap:4px"></div>`);
+  const q = $('add-q');
+  q.addEventListener('input', debounce(() => runSearch(q.value), 350));
+  setTimeout(() => q.focus(), 250);
+}
+async function runSearch(qs) {
+  const box = $('add-results');
+  if (!box) return;
+  qs = qs.trim();
+  if (!qs) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="busy-row"><div class="spinner small"></div>Searching…</div>`;
+  try {
+    const r = await tmdb('search/multi', { query: qs, include_adult: 'false' });
+    if ($('add-q') && $('add-q').value.trim() !== qs) return;
+    const list = (r.results || []).filter(x => x.media_type === 'movie' || x.media_type === 'tv').map(x => normalize(x)).filter(Boolean).slice(0, 20);
+    box.innerHTML = list.length ? list.map(searchRowHtml).join('') : `<div class="muted">No movies or shows found for “${esc(qs)}”.</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="status-line err">${esc(e.message)}</div>`;
+  }
+}
+const STATUS_LABEL = { want: 'On your list', watched: 'Watched', pass: 'Passed' };
+function searchRowHtml(t) {
+  const st = statusOf(t.key);
+  return `<div class="result-row" data-key="${esc(t.key)}">
+    ${t.poster ? `<img class="thumb" src="${imgUrl(t.poster, 'w92')}" alt="" loading="lazy">` : '<span class="thumb"></span>'}
+    <button class="txt" style="border:none;background:none;text-align:left" onclick="openDetail('${esc(t.key)}')"><div class="t">${esc(t.title)}</div><div class="m">${esc(metaLine(t))}</div></button>
+    ${st === 'want' ? `<span class="state">${icon('check')}</span>` : `<button class="icon-btn" onclick="quickAdd('${esc(t.key)}', this)" aria-label="Add ${esc(t.title)} to watchlist" title="${esc(STATUS_LABEL[st] || 'Add to watchlist')}">${icon('add')}</button>`}
+  </div>`;
+}
+function quickAdd(key, btn) {
+  const t = getTitle(key);
+  setItem(t, { status: 'want', source: 'search' });
+  btn.outerHTML = `<span class="state">${icon('check')}</span>`;
+  toast(`Added ${t.title}`);
+}
+
+// Photos: posters, screenshots of lists, a Google watchlist…
+function pickPhotos() { $('photo-input').value = ''; $('photo-input').click(); }
+function pickListFile() { $('file-input').value = ''; $('file-input').click(); }
+// Downscale so a phone photo fits well under the request limit; Claude reads
+// images at about this size anyway.
+function imageToJpeg(file, max = 1568) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s);
+      c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That image couldn't be opened.")); };
+    img.src = url;
+  });
+}
+const EXTRACT_SCHEMA = {
+  type: 'object',
+  properties: {
+    titles: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          year: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+          type: { type: 'string', enum: ['movie', 'tv', 'unknown'] }
+        },
+        required: ['title', 'year', 'type'],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ['titles'],
+  additionalProperties: false
+};
+const EXTRACT_SYSTEM = 'You read what a person shares to build their movie and TV watchlist: photos of posters, screenshots of streaming apps, of a Google watchlist or of someone\'s recommendations, notes, or exported files. ' +
+  'List every distinct movie or TV show that appears, in the order it appears. Give each title as The Movie Database lists it, fixing obvious misreadings. ' +
+  'Give the release year if it is shown or you are sure of it, otherwise null. type is "tv" for series and miniseries, "movie" for films, "unknown" if you cannot tell. ' +
+  'Leave out actors, channels, apps, and anything that is not a movie or show. If there are none, return an empty list.';
+async function importFromContent(content, label) {
+  openImportProgress(label);
+  try {
+    const r = await askClaude({ system: EXTRACT_SYSTEM, content, schema: EXTRACT_SCHEMA, effort: 'low' });
+    const found = r.titles || [];
+    if (!found.length) { showImportReview([], 'Claude didn\'t find any movies or shows in that.'); return; }
+    setImportProgress(`Found ${found.length}. Looking them up…`);
+    const seen = new Set();
+    const rows = await pool(found, 5, async f => ({ asked: f, t: await resolveTitle(f).catch(() => null) }));
+    showImportReview(rows.filter(r => {
+      if (!r.t) return true;
+      if (seen.has(r.t.key)) return false;
+      seen.add(r.t.key);
+      return true;
+    }));
+  } catch (e) {
+    showImportReview([], e.message);
+  }
+}
+async function onPhotosChosen(files) {
+  if (!files.length) return;
+  const list = [...files].slice(0, 8);
+  openImportProgress('Reading ' + (list.length === 1 ? 'the image' : list.length + ' images') + '…');
+  try {
+    const imgs = await Promise.all(list.map(f => imageToJpeg(f)));
+    const content = imgs.map(data => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } }));
+    content.push({ type: 'text', text: 'List the movies and TV shows in ' + (imgs.length === 1 ? 'this image.' : 'these images.') });
+    if (files.length > 8) toast('Only the first 8 images were read');
+    importFromContent(content, 'Claude is reading ' + (imgs.length === 1 ? 'the image' : 'the images') + '…');
+  } catch (e) {
+    showImportReview([], e.message);
+  }
+}
+const MAX_TEXT = 150000;
+async function onListFileChosen(file) {
+  if (!file) return;
+  let text = await file.text();
+  if (text.length > MAX_TEXT) {
+    toast(`That file is long; reading the first ${MAX_TEXT.toLocaleString()} characters`);
+    text = text.slice(0, MAX_TEXT);
+  }
+  importFromContent([{ type: 'text', text: `List the movies and TV shows in this file (${file.name}):\n\n${text}` }], 'Claude is reading ' + file.name + '…');
+}
+function openPasteSheet() {
+  openSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Paste a list</h2><button class="icon-btn" onclick="closeSheet()" aria-label="Close">${icon('close')}</button></div>
+    <div class="sheet-body">
+      <div class="muted">Anything works: a list from a friend, an article, notes. Claude picks out the titles.</div>
+      <textarea class="text-input" id="paste-text" rows="8" placeholder="Severance, The Bear, Past Lives…"></textarea>
+    </div>
+    <div class="sheet-foot"><button class="btn" onclick="closeSheet()">Cancel</button><button class="btn filled" onclick="submitPaste()">Find titles</button></div>`);
+  setTimeout(() => $('paste-text') && $('paste-text').focus(), 250);
+}
+function submitPaste() {
+  const text = ($('paste-text').value || '').trim().slice(0, MAX_TEXT);
+  if (!text) return;
+  importFromContent([{ type: 'text', text: 'List the movies and TV shows in this text:\n\n' + text }], 'Claude is reading your list…');
+}
+function openImportProgress(label) {
+  openSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Importing</h2></div>
+    <div class="sheet-body"><div class="busy-row"><div class="spinner small"></div><span id="import-progress">${esc(label)}</span></div></div>`);
+}
+function setImportProgress(msg) { const el = $('import-progress'); if (el) el.textContent = msg; }
+function showImportReview(rows, message) {
+  const addable = rows.filter(r => r.t && statusOf(r.t.key) !== 'want');
+  openSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>${rows.length ? `Found ${rows.length} title${rows.length === 1 ? '' : 's'}` : 'Nothing to add'}</h2><button class="icon-btn" onclick="closeSheet()" aria-label="Close">${icon('close')}</button></div>
+    <div class="sheet-body scroll" style="gap:4px">
+      ${message ? `<div class="muted">${esc(message)}</div>` : ''}
+      ${rows.map((r, i) => {
+        if (!r.t) return `<div class="result-row"><span class="thumb"></span><div class="txt"><div class="t">${esc(r.asked.title)}</div><div class="m">Couldn't find this on TMDB</div></div></div>`;
+        const st = statusOf(r.t.key);
+        const can = st !== 'want';
+        return `<label class="result-row">
+          <input type="checkbox" data-i="${i}" ${can ? (st === 'none' ? 'checked' : '') : 'disabled checked'}>
+          ${r.t.poster ? `<img class="thumb" src="${imgUrl(r.t.poster, 'w92')}" alt="" loading="lazy">` : '<span class="thumb"></span>'}
+          <div class="txt"><div class="t">${esc(r.t.title)}</div><div class="m">${esc(metaLine(r.t))}${r.t.year && r.asked.year && Math.abs(Number(r.t.year) - r.asked.year) > 1 ? ` · you may have meant the ${r.asked.year} one` : ''}</div></div>
+          ${STATUS_LABEL[st] ? `<span class="state">${STATUS_LABEL[st]}</span>` : ''}
+        </label>`;
+      }).join('')}
+    </div>
+    <div class="sheet-foot">
+      <button class="btn" onclick="closeSheet()">${addable.length ? 'Cancel' : 'Close'}</button>
+      ${addable.length ? `<button class="btn filled" id="import-add">Add to watchlist</button>` : ''}
+    </div>`);
+  const btn = $('import-add');
+  if (!btn) return;
+  const boxes = [...$('sheet').querySelectorAll('input[type=checkbox]:not(:disabled)')];
+  const update = () => { const n = boxes.filter(b => b.checked).length; btn.textContent = n ? `Add ${n} to watchlist` : 'Add to watchlist'; btn.disabled = !n; };
+  boxes.forEach(b => b.addEventListener('change', update));
+  update();
+  btn.onclick = () => {
+    const chosen = boxes.filter(b => b.checked).map(b => rows[Number(b.dataset.i)].t);
+    for (const t of chosen) setItem(t, { status: 'want', source: 'import' });
+    closeSheet();
+    toast(`Added ${chosen.length} to your watchlist`, 'View', () => { wlFilters.status = 'want'; switchTab('watchlist'); });
+    renderCurrent();
+  };
+}
+
+// ── Tonight ────────────────────────────────────────────────
+function renderTonightControls() {
+  ['all', 'movie', 'tv'].forEach(t => $('tn-' + t).classList.toggle('on', tonightType === t));
+  // Until the person flips it, the switch follows whether they've picked services.
+  if (lsGet('wl.tonightMine', null) == null) tonightMine = prefs.services.length > 0;
+  $('tn-mine').checked = tonightMine;
+  const chips = $('mood-chips');
+  if (!chips.childElementCount) {
+    chips.innerHTML = MOODS.map(m => `<button class="chip" onclick="addMood('${esc(m)}')">${esc(m)}</button>`).join('');
+  }
+}
+function addMood(m) {
+  const el = $('mood');
+  el.value = el.value.trim() ? el.value.trim().replace(/[.,;]?$/, ', ') + m.toLowerCase() : m;
+  el.focus();
+}
+function tonightCandidates() {
+  let list = Object.values(items).filter(i => i.status === 'want');
+  if (tonightType !== 'all') list = list.filter(i => i.type === tonightType);
+  return list;
+}
+async function ensureDetailsFor(list, label) {
+  const missing = list.filter(i => !detailsFresh(i.key));
+  if (!missing.length) return;
+  let done = 0;
+  const msg = () => setTonightResults(`<div class="busy-row"><div class="spinner small"></div>${esc(label)} (${done} of ${missing.length})</div>`);
+  msg();
+  await pool(missing.slice(0, 150), 5, async i => { await getDetails(i.key); done++; msg(); });
+}
+function setTonightResults(html) { $('tonight-results').innerHTML = html; }
+const PICK_SCHEMA = {
+  type: 'object',
+  properties: {
+    picks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { n: { type: 'integer' }, reason: { type: 'string' } },
+        required: ['n', 'reason'],
+        additionalProperties: false
+      }
+    },
+    note: { type: 'string' }
+  },
+  required: ['picks', 'note'],
+  additionalProperties: false
+};
+async function pickTonight() {
+  if (tonightBusy) return;
+  let list = tonightCandidates();
+  if (!list.length) { setTonightResults(`<div class="empty-state">${icon('bookmark')}<h3>Your watchlist is empty</h3><div>Add a few titles first.</div></div>`); return; }
+  tonightBusy = true;
+  $('tn-pick').disabled = true;
+  try {
+    await ensureDetailsFor(list, 'Checking runtimes and where things stream');
+    if (tonightMine && prefs.services.length) {
+      list = list.filter(i => onMyServices(i.key) !== false);
+      if (!list.length) { setTonightResults(`<div class="ai-note">${icon('info')}<span>Nothing on your watchlist is streaming on your services right now. Turn off “Only what's on my services” to see everything.</span></div>`); return; }
+    }
+    list = list.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 150);
+    setTonightResults(`<div class="busy-row"><div class="spinner small"></div>Claude is choosing from ${list.length} title${list.length === 1 ? '' : 's'}…</div>`);
+    const lines = list.map((i, n) => {
+      const d = details[i.key] || {};
+      const mine = myProviders(i.key) || [];
+      const len = i.type === 'movie' ? (d.runtime ? fmtRuntime(d.runtime) : '') : [d.seasons ? d.seasons + ' seasons' : '', d.runtime ? '~' + d.runtime + ' min episodes' : ''].filter(Boolean).join(', ');
+      return `${n}. ${titleLine(i)} | ${(i.genres || []).join('/')}${len ? ' | ' + len : ''}${i.vote ? ' | TMDB ' + i.vote : ''}${mine.length ? ' | on ' + mine.map(p => p.name).join(', ') : ''}${i.aiReason ? ' | added because: ' + i.aiReason : ''}\n   ${(i.overview || '').slice(0, 180)}`;
+    });
+    const mood = $('mood').value.trim();
+    const now = new Date();
+    const r = await askClaude({
+      effort: 'medium',
+      schema: PICK_SCHEMA,
+      system: 'You help one person choose what to watch right now from their own watchlist. Choose up to 3 of the numbered candidates, best first, and nothing that is not on the list. ' +
+        'Weigh their mood most, then how long it runs against the time of day, then their taste. Each reason is one or two sentences to them ("you"), concrete about why it fits tonight. ' +
+        'note is one sentence if nothing fits the mood well, otherwise an empty string.',
+      content: [{
+        type: 'text',
+        text: `It's ${now.toLocaleDateString('en-US', { weekday: 'long' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.\n` +
+          `Mood: ${mood || 'not given; pick what suits the time and their taste'}\n\n` +
+          `Their taste:\n${tasteProfile(false) || 'Not rated anything yet.'}\n\n` +
+          `Candidates:\n${lines.join('\n')}`
+      }]
+    });
+    const picks = (r.picks || []).filter(p => list[p.n]).slice(0, 3);
+    if (!picks.length) { setTonightResults(`<div class="ai-note">${icon('info')}<span>${esc(r.note || 'Claude couldn\'t find a good fit. Try a different mood.')}</span></div>`); return; }
+    setTonightResults((r.note ? `<div class="ai-note">${icon('info')}<span>${esc(r.note)}</span></div>` : '') +
+      picks.map((p, i) => pickCardHtml(list[p.n], p.reason, i + 1)).join(''));
+  } catch (e) {
+    setTonightResults(`<div class="status-line err">${esc(e.message)}</div>`);
+  } finally {
+    tonightBusy = false;
+    $('tn-pick').disabled = false;
+  }
+}
+function pickCardHtml(i, why, rank) {
+  const mine = myProviders(i.key) || [];
+  return `<button class="pick-card" onclick="openDetail('${esc(i.key)}')">
+    ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="">` : '<span class="thumb"></span>'}
+    <span class="txt">
+      <span style="display:flex;gap:8px;align-items:center">${rank ? `<span class="pick-rank">${rank}</span>` : ''}<span class="t">${esc(i.title)}</span></span>
+      <span class="m">${esc(metaLine(i))}${mine.length ? ' · on ' + esc(mine.map(p => p.name).join(', ')) : ''}</span>
+      <span class="why">${esc(why)}</span>
+    </span>
+  </button>`;
+}
+async function surpriseMe() {
+  let list = tonightCandidates();
+  if (!list.length) { setTonightResults(`<div class="empty-state">${icon('bookmark')}<h3>Your watchlist is empty</h3><div>Add a few titles first.</div></div>`); return; }
+  if (tonightMine && prefs.services.length) {
+    try { await ensureDetailsFor(list, 'Checking where things stream'); } catch (e) {}
+    list = list.filter(i => onMyServices(i.key) !== false);
+  }
+  if (!list.length) { setTonightResults(`<div class="ai-note">${icon('info')}<span>Nothing on your watchlist is on your services right now.</span></div>`); return; }
+  const i = list[Math.floor(Math.random() * list.length)];
+  setTonightResults(pickCardHtml(i, i.aiReason || 'Picked at random from your watchlist.', 0));
+}
+
+// ── Settings ───────────────────────────────────────────────
+function regionName(code) { return (REGIONS.find(r => r[0] === code) || [code, code])[1]; }
+function renderSettings() {
+  const sel = $('region');
+  if (!sel.childElementCount) sel.innerHTML = REGIONS.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
+  sel.value = prefs.region;
+  $('app-version').textContent = APP_VERSION;
+  $('set-pass').value = passcode;
+  const n = s => Object.values(items).filter(i => i.status === s).length;
+  $('backup-counts').textContent = `${n('want')} to watch, ${n('watched')} watched, ${n('pass')} passed.`;
+  renderSyncStatus();
+  renderProviderGrid();
+  if (!providerCatalog || providerCatalog.region !== prefs.region) loadProviderCatalog();
+}
+async function loadProviderCatalog() {
+  if (!passcode) return;
+  const region = prefs.region;
+  const grid = $('prov-grid');
+  if (!providerCatalog) grid.innerHTML = `<div class="busy-row"><div class="spinner small"></div>Loading services…</div>`;
+  try {
+    const [m, t] = await Promise.all([
+      tmdb('watch/providers/movie', { watch_region: region }),
+      tmdb('watch/providers/tv', { watch_region: region })
+    ]);
+    const map = new Map();
+    for (const p of [...(m.results || []), ...(t.results || [])]) {
+      const pr = (p.display_priorities && p.display_priorities[region]) ?? p.display_priority ?? 999;
+      const cur = map.get(p.provider_id);
+      if (!cur || pr < cur.pr) map.set(p.provider_id, { id: p.provider_id, name: p.provider_name, logo: p.logo_path, pr });
+    }
+    providerCatalog = { region, list: [...map.values()].sort((a, b) => a.pr - b.pr) };
+    lsSet('wl.providerCatalog', providerCatalog);
+    renderProviderGrid();
+  } catch (e) {
+    grid.innerHTML = `<div class="status-line err">${esc(e.message)}</div>`;
+  }
+}
+function renderProviderGrid() {
+  const grid = $('prov-grid');
+  if (!providerCatalog) return;
+  const q = ($('prov-filter').value || '').trim().toLowerCase();
+  let list = providerCatalog.list;
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
+  const on = list.filter(p => prefs.services.includes(p.id));
+  const off = list.filter(p => !prefs.services.includes(p.id));
+  const shown = q || provShowAll ? [...on, ...off] : [...on, ...off.slice(0, Math.max(0, 24 - on.length))];
+  grid.innerHTML = shown.map(p => `<button class="prov-tile${prefs.services.includes(p.id) ? ' on' : ''}" onclick="toggleService(${p.id})" aria-pressed="${prefs.services.includes(p.id)}">
+      <span class="tick">${icon('check')}</span>
+      <img src="${imgUrl(p.logo, 'w92')}" alt="" loading="lazy">${esc(p.name)}</button>`).join('') ||
+    `<div class="muted">No service matches “${esc(q)}”.</div>`;
+  const more = $('prov-more');
+  more.hidden = !!q || list.length <= 24;
+  more.textContent = provShowAll ? 'Show fewer' : `Show all ${list.length} services`;
+}
+function toggleService(id) {
+  const s = new Set(prefs.services);
+  s.has(id) ? s.delete(id) : s.add(id);
+  prefs.services = [...s];
+  prefs.updatedAt = Date.now();
+  prefsDirty = true;
+  savePrefs();
+  scheduleSync();
+  renderProviderGrid();
+  if (deckFilters.mine) resetDeckSoon();
+}
+const resetDeckSoon = debounce(() => resetDeck(), 800);
+function setRegion(code) {
+  prefs.region = code;
+  prefs.updatedAt = Date.now();
+  prefsDirty = true;
+  providerCatalog = null;
+  savePrefs();
+  scheduleSync();
+  renderSettings();
+  resetDeckSoon();
+}
+async function savePasscode() {
+  const v = $('set-pass').value.trim();
+  const st = $('pass-status');
+  st.className = 'status-line';
+  st.textContent = 'Checking…';
+  const old = passcode;
+  passcode = v;
+  try {
+    await api('/api/ping');
+    lsSet('wl.passcode', v);
+    st.className = 'status-line ok';
+    st.textContent = 'Connected.';
+    syncNow();
+  } catch (e) {
+    passcode = old;
+    st.className = 'status-line err';
+    st.textContent = e.message;
+  }
+}
+
+// Backup: the whole list as a file.
+function exportBackup() {
+  const data = { app: 'watchlist', version: APP_VERSION, exportedAt: new Date().toISOString(), prefs, items: Object.values(items) };
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Watchlist backup ${today()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+async function restoreBackup(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.app !== 'watchlist' || !Array.isArray(data.items)) throw new Error("That isn't a Watchlist backup.");
+    let n = 0;
+    for (const it of data.items) {
+      if (!it || !it.key) continue;
+      const cur = items[it.key];
+      if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) { items[it.key] = it; dirty.add(it.key); n++; }
+    }
+    if (data.prefs && (data.prefs.updatedAt || 0) > (prefs.updatedAt || 0)) { prefs = data.prefs; prefsDirty = true; savePrefs(); }
+    saveItems();
+    scheduleSync();
+    refreshCounts();
+    renderCurrent();
+    toast(`Restored ${n} title${n === 1 ? '' : 's'}`);
+  } catch (e) {
+    toast(e.message || "That file couldn't be read.");
+  }
+}
+
+// ── Welcome ────────────────────────────────────────────────
+async function submitWelcome(e) {
+  e.preventDefault();
+  const v = $('welcome-pass').value.trim();
+  if (!v) return;
+  const st = $('welcome-status');
+  st.className = 'status-line';
+  st.textContent = 'Checking…';
+  $('welcome-go').disabled = true;
+  passcode = v;
+  try {
+    const r = await api('/api/ping');
+    if (!r.tmdb || !r.claude) {
+      st.className = 'status-line err';
+      st.textContent = `Connected, but the server is missing ${[!r.tmdb && 'TMDB_TOKEN', !r.claude && 'ANTHROPIC_API_KEY'].filter(Boolean).join(' and ')}. See SETUP.md.`;
+    }
+    lsSet('wl.passcode', v);
+    document.body.classList.remove('needs-setup');
+    await syncNow();
+    if (!prefs.services.length) {
+      switchTab('settings');
+      toast('Pick the streaming services you have');
+    } else {
+      switchTab('discover');
+    }
+    resetDeck();
+  } catch (err) {
+    passcode = '';
+    st.className = 'status-line err';
+    st.textContent = err.message;
+  } finally {
+    $('welcome-go').disabled = false;
+  }
+}
+
+// ── Sheets ─────────────────────────────────────────────────
+// One bottom sheet at a time. Opening one while another is open swaps its
+// content. The phone's back gesture closes it.
+function openSheet(html, opts = {}) {
+  const sheet = $('sheet'), scrim = $('scrim');
+  const wasOpen = sheetOpen;
+  if (wasOpen && sheetOnClose) { const f = sheetOnClose; sheetOnClose = null; f(); }
+  sheet.innerHTML = html;
+  sheet.dataset.key = opts.key || '';
+  sheetOnClose = opts.onClose || null;
+  if (!wasOpen) {
+    sheet.hidden = false; scrim.hidden = false;
+    requestAnimationFrame(() => { sheet.classList.add('show'); scrim.classList.add('show'); });
+    try { history.pushState({ sheet: true }, ''); } catch (e) {}
+    sheetOpen = true;
+  }
+}
+function closeSheet(fromPop) {
+  if (!sheetOpen) return;
+  sheetOpen = false;
+  const sheet = $('sheet'), scrim = $('scrim');
+  sheet.classList.remove('show'); scrim.classList.remove('show');
+  setTimeout(() => { if (!sheetOpen) { sheet.hidden = true; scrim.hidden = true; sheet.innerHTML = ''; } }, 250);
+  const f = sheetOnClose;
+  sheetOnClose = null;
+  if (f) f();
+  if (!fromPop && history.state && history.state.sheet) history.back();
+}
+window.addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
+
+// ── Toast ──────────────────────────────────────────────────
+function toast(msg, actionLabel, onAction) {
+  const el = $('toast');
+  el.querySelector('.msg').textContent = msg;
+  const b = el.querySelector('button');
+  b.hidden = !actionLabel;
+  b.textContent = actionLabel || '';
+  b.onclick = () => { el.classList.remove('show'); if (onAction) onAction(); };
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), actionLabel ? 5000 : 2800);
+}
+
+// ── Keyboard ───────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
+  if (sheetOpen || currentTab !== 'discover' || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowRight') decideTop('want');
+  else if (e.key === 'ArrowLeft') decideTop('pass');
+  else if (e.key === 'ArrowUp') { e.preventDefault(); decideTop('seen'); }
+  else if (e.key === 'u' || e.key === 'U') undoDecision();
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTopDetail(); }
+});
+
+// ── Online / offline ───────────────────────────────────────
+function updateOnline() {
+  document.body.classList.toggle('offline', !navigator.onLine);
+  if (navigator.onLine) { syncNow(); if (currentTab === 'discover' && !deck.length) resetDeck(); }
+}
+window.addEventListener('online', updateOnline);
+window.addEventListener('offline', updateOnline);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+
+// ── Service Worker ─────────────────────────────────────────
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ── Init ───────────────────────────────────────────────────
+loadState();
+loadWlView();
+loadWlFilters();
+loadTonightPrefs();
+(() => {
+  const f = lsGet('wl.deckFilters', null);
+  if (f) Object.assign(deckFilters, { type: f.type || 'all', genre: f.genre || '', mine: !!f.mine && prefs.services.length > 0 });
+  providerCatalog = lsGet('wl.providerCatalog', null);
+  $('deck-genre').innerHTML = '<option value="">Any genre</option>' + GENRES.map(g => `<option value="${esc(g[0])}">${esc(g[0])}</option>`).join('');
+  $('welcome-form').addEventListener('submit', submitWelcome);
+  $('photo-input').addEventListener('change', e => onPhotosChosen(e.target.files));
+  $('file-input').addEventListener('change', e => onListFileChosen(e.target.files[0]));
+  $('backup-input').addEventListener('change', e => e.target.files[0] && restoreBackup(e.target.files[0]));
+  document.body.classList.toggle('offline', !navigator.onLine);
+  refreshCounts();
+  renderDeckChips();
+  if (!passcode) { document.body.classList.add('needs-setup'); return; }
+  const tab = lsGet('wl.tab', 'discover');
+  switchTab(['discover', 'watchlist', 'tonight', 'settings'].includes(tab) ? tab : 'discover');
+  fillDeck();
+  syncNow().then(() => refreshStaleDetails());
+})();
+</script>
+</body>
+</html>

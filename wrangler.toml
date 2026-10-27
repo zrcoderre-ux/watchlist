@@ -1,0 +1,33 @@
+# Cloudflare Worker config for Watchlist.
+#
+# worker.js serves the static files AND the /api/ endpoints (TMDB, Claude,
+# sync). See SETUP.md for the one-time setup.
+
+name = "watchlist"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Serve the repo's static files through the Worker. Requests outside /api/
+# fall through to these assets.
+[assets]
+directory = "."
+binding = "ASSETS"
+
+# The watchlist itself, shared across devices. The deploy creates the Durable
+# Object, so there is nothing to set up in the dashboard.
+[[durable_objects.bindings]]
+name = "WATCH_STORE"
+class_name = "WatchStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WatchStore"]
+
+# Secrets, set once and never here:
+#   npx wrangler secret put APP_PASSCODE
+#   npx wrangler secret put TMDB_TOKEN
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#
+# Optional: use a different Claude model without editing code.
+# [vars]
+# CLAUDE_MODEL = "claude-opus-5-5"
