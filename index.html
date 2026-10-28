@@ -1083,7 +1083,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
@@ -1096,6 +1096,7 @@ const AI_MIN_VOTES = 50;
 const AI_MIN_RT = 80;
 const AI_FLOOR_SAMPLE = 8;       // liked titles with a score before the floor moves
 const AI_FLOOR_LOVED_WEIGHT = 2; // a loved title counts as this many liked ones
+const AI_CRITICS_WEIGHT = 1.5;   // Metacritic against each audience score in blendedScore
 const AI_FLOOR_RT = [60, 90];
 const AI_FLOOR_SCORE = [6.5, 8.5];
 // Scores rarely change, and the server keeps them; a device checks back monthly.
@@ -2066,13 +2067,15 @@ const SUGGEST_SCHEMA = {
 // liked or loved reach (a loved one counting double), once enough of them have
 // one; the defaults until then.
 // TMDB's audience, IMDb and Metacritic (as tenths), averaged over whichever a
-// title has; null with none. `votes` null means TMDB's count isn't known.
+// title has, the critics weighing a little more; null with none. `votes` null
+// means TMDB's count isn't known.
 function blendedScore(vote, votes, s) {
   const parts = [];
-  if (vote > 0 && (votes == null || votes >= AI_MIN_VOTES)) parts.push(vote);
-  if (s && s.imdb != null) parts.push(s.imdb);
-  if (s && s.mc != null) parts.push(s.mc / 10);
-  return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
+  if (vote > 0 && (votes == null || votes >= AI_MIN_VOTES)) parts.push([vote, 1]);
+  if (s && s.imdb != null) parts.push([s.imdb, 1]);
+  if (s && s.mc != null) parts.push([s.mc / 10, AI_CRITICS_WEIGHT]);
+  const w = parts.reduce((a, [, x]) => a + x, 0);
+  return w ? parts.reduce((a, [v, x]) => a + v * x, 0) / w : null;
 }
 function aiFloors() {
   const liked = Object.values(items).filter(i => i.status === 'watched' && i.myRating > 0);
@@ -2134,7 +2137,7 @@ async function aiSuggestions(f) {
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
       'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
       'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
-      `Suggest only titles that clear this bar: ${floor.rt}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise ${floor.score} out of 10 or higher averaged across whichever of TMDB's audience rating, IMDb's rating and Metacritic's score (as tenths) it has. A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
+      `Suggest only titles that clear this bar: ${floor.rt}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise ${floor.score} out of 10 or higher averaged across whichever of TMDB's audience rating, IMDb's rating and Metacritic's score (as tenths) it has, Metacritic counting ${AI_CRITICS_WEIGHT} times as much as each of the others. A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
       'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
     content: [{
       type: 'text',

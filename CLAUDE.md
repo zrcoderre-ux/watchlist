@@ -71,7 +71,7 @@ The app is a single-file PWA. There is no build step: edit and ship.
   `strongMatch`: Rotten Tomatoes critics where OMDb has a score (looked up per
   pick), otherwise `blendedScore()`: the average of TMDB's audience (on at
   least `AI_MIN_VOTES` votes), IMDb and Metacritic as tenths, whichever a
-  title has. The floor
+  title has, Metacritic weighted `AI_CRITICS_WEIGHT` (1.5). The floor
   moves (`aiFloors()`): once `AI_FLOOR_SAMPLE` liked or loved titles have a
   score, it sits just under the lower quartile of theirs (a loved title
   counting `AI_FLOOR_LOVED_WEIGHT` times; RT −3, blended −0.2),
