@@ -1081,13 +1081,15 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles TMDB's audience rates this high (out of 10, on enough
 // votes to mean something); below it only what Claude calls a very strong match.
+// Where Rotten Tomatoes has a critics' score, that decides instead.
 const AI_MIN_SCORE = 8;
 const AI_MIN_VOTES = 50;
+const AI_MIN_RT = 80;
 const REGIONS = [
   ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
   ['AU', 'Australia'], ['NZ', 'New Zealand'], ['DE', 'Germany'], ['FR', 'France'],
@@ -2038,7 +2040,7 @@ async function aiSuggestions(f) {
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
       'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
       'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
-      `Suggest only titles audiences rate ${AI_MIN_SCORE} out of 10 or higher (on TMDB or IMDb). A title rated lower is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops lower-rated titles that are not marked strongMatch. ` +
+      `Suggest only titles that clear this bar: ${AI_MIN_RT}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise an audience rating of ${AI_MIN_SCORE} out of 10 or higher (on TMDB or IMDb). A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
       'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
     content: [{
       type: 'text',
@@ -2048,14 +2050,19 @@ async function aiSuggestions(f) {
     }],
     resolve: 'suggestions'
   });
-  let out = (r.suggestions || []).map(s => {
-    const t = matchToTitle(s);
-    if (!t) return null;
+  const picks = (r.suggestions || []).map(s => ({ s, t: matchToTitle(s) })).filter(x => x.t);
+  // Rotten Tomatoes' critics decide where OMDb has them; it's looked up only
+  // for picks the bar applies to. Without it, TMDB's audience rating decides.
+  await pool(picks.filter(x => !x.s.strongMatch), 5, async x => {
+    try { await getDetails(x.t.key); x.rt = ((await getRatings(x.t.key)) || {}).rt; } catch (e) {}
+  });
+  let out = picks.filter(x => x.s.strongMatch || (x.rt != null
+    ? x.rt >= AI_MIN_RT
     // A rating on only a handful of votes doesn't clear the bar on its own.
-    if (!s.strongMatch && !(t.vote >= AI_MIN_SCORE && t.votes >= AI_MIN_VOTES)) return null;
-    t.aiReason = s.reason;
-    return t;
-  }).filter(Boolean);
+    : x.t.vote >= AI_MIN_SCORE && x.t.votes >= AI_MIN_VOTES)).map(x => {
+    x.t.aiReason = x.s.reason;
+    return x.t;
+  });
   if (f.mine && prefs.services.length) {
     await pool(out, 5, t => getDetails(t.key));
     out = out.filter(t => onMyServices(t.key) !== false);
@@ -2251,7 +2258,8 @@ function detailActions(key) {
       ${st !== 'pass' ? `<button class="btn" onclick="detailSet('${esc(key)}', {status:'pass'}, 'Hidden from Discover')">Not interested</button>` : ''}
     </div>${rateArea}`;
 }
-const RATINGS = [[2, 'favoriteFill', 'Loved it', 'loved'], [1, 'thumbUp', 'Liked it', 'liked'], [-1, 'thumbDown', 'Not for me', 'nope']];
+// Left to right, so "Loved it" sits under the right thumb.
+const RATINGS = [[-1, 'thumbDown', 'Not for me', 'nope'], [1, 'thumbUp', 'Liked it', 'liked'], [2, 'favoriteFill', 'Loved it', 'loved']];
 function ratingLabel(r) { return (RATINGS.find(x => x[0] === r) || [0, '', ''])[2]; }
 function rateChoicesHtml(cur) {
   return `<div class="rate-choices" role="group" aria-label="How was it?">${RATINGS.map(([r, ic, label, cls]) =>
