@@ -36,6 +36,12 @@ The app is a single-file PWA. There is no build step: edit and ship.
   `ScoreStore` Durable Object and re-asked of OMDb only after 14 days for a
   title from this year or last, 180 for older ones (the free key allows 1,000
   lookups a day). If OMDb refuses, stored scores are served however old.
+  Every outgoing Claude, OMDb and TMDB call is counted by UTC day in the
+  `UsageStore` Durable Object (`/api/usage`, shown in Settings → Usage);
+  Claude's cost is estimated from `CLAUDE_PRICES` in `worker.js` (update it
+  when prices or the model change) and filed under the `feature` that
+  `askClaude()` passes. A job records its Claude usage once per alarm, not per
+  call, to stay inside the 50-requests-per-invocation limit.
   Every `/api/` call is gated by the `X-App-Key` passcode. See `SETUP.md`.
 - Claude jobs: each runs in its own `ClaudeJob` Durable Object, driven by
   alarms, so it finishes when a phone suspends the app; the app polls

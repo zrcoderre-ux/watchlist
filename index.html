@@ -755,6 +755,12 @@ textarea.text-input:focus { padding: 11px 15px; }
 .section-card { background: var(--surface); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .section-card h3 { font-size: 16px; font-weight: 500; }
 .section-card p { color: var(--on-surface-variant); }
+.usage-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.usage-row .k { color: var(--on-surface-variant); }
+.usage-row .v { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.usage-bar { height: 6px; border-radius: 3px; background: var(--surface-highest); overflow: hidden; }
+.usage-bar span { display: block; height: 100%; background: var(--primary); }
+.usage-bar.warn span { background: var(--error); }
 .setting-row {
   display: flex; align-items: center; gap: 16px;
   min-height: 48px;
@@ -1031,6 +1037,11 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
             </div>
 
             <div class="section-card">
+              <h3>Usage</h3>
+              <div id="usage-body"><p>Loading…</p></div>
+            </div>
+
+            <div class="section-card">
               <h3>Backup</h3>
               <p id="backup-counts"></p>
               <div class="btn-row">
@@ -1083,8 +1094,14 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const IMG = 'https://image.tmdb.org/t/p/';
+// Settings → Usage measures Claude's estimated spend against this monthly API
+// credit (shared with another app, whose use isn't seen here), and OMDb
+// lookups against the free key's daily allowance.
+const CLAUDE_MONTHLY_CREDIT = 100;
+const OMDB_DAILY_LIMIT = 1000;
+const USAGE_FEATURES = { 'for-you': 'For you', tonight: "Tonight's picks", import: 'Imports', other: 'Other' };
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
 // match: Rotten Tomatoes' critics where it has a score, else the average of
@@ -1338,10 +1355,11 @@ async function tmdb(path, params = {}) {
 // { title, year, type } in it up on TMDB (see matchToTitle).
 // It runs as a job on the server, so it finishes even if the phone puts the
 // app in the background; this polls until the answer is ready.
-async function askClaude({ system, content, schema, effort = 'medium', intro, text, resolve, onStart, onProgress }) {
+// `feature` files the call's cost under that name in Settings → Usage.
+async function askClaude({ system, content, schema, effort = 'medium', intro, text, resolve, feature, onStart, onProgress }) {
   const { id } = await api('/api/jobs', {
     method: 'POST',
-    body: JSON.stringify({ system, content, schema, effort, intro, text, resolve })
+    body: JSON.stringify({ system, content, schema, effort, intro, text, resolve, feature })
   });
   if (onStart) onStart(id);
   return waitForJob(id, onProgress);
@@ -2162,6 +2180,7 @@ async function aiSuggestions(f) {
   }
   const known = Object.values(items).filter(i => i.status !== 'none').length;
   const r = await askClaude({
+    feature: 'for-you',
     effort: 'medium',
     schema: SUGGEST_SCHEMA,
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
@@ -2612,7 +2631,7 @@ async function importFromContent(job, label) {
   openImportProgress(label);
   try {
     const r = await askClaude({
-      system: EXTRACT_SYSTEM, schema: EXTRACT_SCHEMA, effort: 'low', resolve: 'titles', ...job,
+      system: EXTRACT_SYSTEM, schema: EXTRACT_SCHEMA, effort: 'low', resolve: 'titles', feature: 'import', ...job,
       onStart: id => { importWatching = id; lsSet(PENDING_IMPORT, { id, label, at: Date.now() }); },
       onProgress: importProgress
     });
@@ -2809,6 +2828,7 @@ async function pickTonight() {
     const mood = $('mood').value.trim();
     const now = new Date();
     const r = await askClaude({
+      feature: 'tonight',
       effort: 'medium',
       schema: PICK_SCHEMA,
       system: 'You help one person choose what to watch right now from their own watchlist. Choose up to 3 of the numbered candidates, best first, and nothing that is not on the list. ' +
@@ -2858,6 +2878,46 @@ async function surpriseMe() {
 
 // ── Settings ───────────────────────────────────────────────
 function regionName(code) { return (REGIONS.find(r => r[0] === code) || [code, code])[1]; }
+// What the server recorded going out, by UTC day: Claude's estimated spend
+// this month, and today's OMDb and TMDB calls.
+async function renderUsage() {
+  const el = $('usage-body');
+  if (!passcode) { el.innerHTML = '<p>Connect to the server to see usage.</p>'; return; }
+  let u;
+  try { u = await api('/api/usage'); } catch (e) { el.innerHTML = `<p>${esc(e.message)}</p>`; return; }
+  const month = u.today.slice(0, 7);
+  const today = u.days[u.today] || { claude: {}, omdb: 0, tmdb: 0 };
+  const byFeature = {};
+  let monthCost = 0, todayCost = 0;
+  for (const [day, d] of Object.entries(u.days)) {
+    if (!day.startsWith(month)) continue;
+    for (const [f, c] of Object.entries(d.claude || {})) {
+      const t = byFeature[f] || (byFeature[f] = { calls: 0, cost: 0 });
+      t.calls += c.calls; t.cost += c.cost;
+      monthCost += c.cost;
+      if (day === u.today) todayCost += c.cost;
+    }
+  }
+  const usd = n => '$' + (n < 10 ? n.toFixed(2) : n.toFixed(0));
+  const row = (k, v) => `<div class="usage-row"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+  const bar = (frac, warnAt) => `<div class="usage-bar${frac >= warnAt ? ' warn' : ''}"><span style="width:${Math.min(100, frac * 100).toFixed(1)}%"></span></div>`;
+  const features = Object.entries(byFeature).sort((a, b) => b[1].cost - a[1].cost)
+    .map(([f, t]) => row(`${USAGE_FEATURES[f] || f}: ${t.calls} ${t.calls === 1 ? 'call' : 'calls'}`, usd(t.cost))).join('');
+  const omdbFrac = today.omdb / OMDB_DAILY_LIMIT;
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
+    <div class="sec-title" style="margin:0">Claude this month</div>
+    ${row('This app, estimated', `${usd(monthCost)} of ${usd(CLAUDE_MONTHLY_CREDIT)}`)}
+    ${bar(monthCost / CLAUDE_MONTHLY_CREDIT, 0.8)}
+    ${features || row('No calls yet', '')}
+    ${row('Today', usd(todayCost))}
+    <div class="small muted">Estimated from Anthropic's list prices. Your credit is shared with your other app, so the Anthropic Console's usage page has the true total.</div>
+    <div class="sec-title" style="margin:6px 0 0">Today</div>
+    ${row('OMDb lookups', `${today.omdb.toLocaleString()} of ${OMDB_DAILY_LIMIT.toLocaleString()}`)}
+    ${bar(omdbFrac, 0.8)}
+    ${row('TMDB requests (no daily limit)', today.tmdb.toLocaleString())}
+    <div class="small muted">Days run on UTC, so "today" starts at ${esc(new Date(Date.UTC(2000, 0, 1)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))} your time. Saved scores and cached answers aren't counted; only calls that went out.</div>
+  </div>`;
+}
 function renderSettings() {
   const sel = $('region');
   if (!sel.childElementCount) sel.innerHTML = REGIONS.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
@@ -2868,6 +2928,7 @@ function renderSettings() {
   $('backup-counts').textContent = `${n('want')} to watch, ${n('watched')} watched, ${n('pass')} passed.`;
   renderSyncStatus();
   renderTasteList();
+  renderUsage();
   renderProviderGrid();
   if (!providerCatalog || providerCatalog.region !== prefs.region) loadProviderCatalog();
 }

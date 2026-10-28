@@ -12,6 +12,8 @@
 //   POST /api/jobs         Starts a Claude job; GET /api/jobs/<id> polls it.
 //                          The work runs in a Durable Object, so it carries on
 //                          when the phone puts the app in the background.
+//   GET  /api/usage        What the app has used of Claude, OMDb and TMDB, by
+//                          day (UTC), recorded as the calls go out.
 //   POST /api/sync         The watchlist itself, kept in a Durable Object so
 //                          a phone and a computer see the same list.
 //   GET  /api/ping         Checks the passcode.
@@ -51,6 +53,21 @@ const JOB_FETCH_BUDGET = 40;
 const JOB_KEEP_MS = 24 * 3600 * 1000;      // results wait a day for the app to collect them
 const JOB_ID = /^[0-9a-f-]{36}$/;
 
+// Anthropic's list prices, $ per million tokens: input, output, cache read.
+// Cache writes cost 1.25x input. Used only to estimate spend for the usage
+// panel; the Anthropic Console has the real bill. A model not listed is priced
+// as the default.
+const CLAUDE_PRICES = {
+  'claude-opus-5-5': [4, 20, 0.2],
+  'claude-sonnet-5-5': [2, 10, 0.2],
+  'claude-haiku-5-5': [0.1, 0.5, 0.01],
+  'claude-fable-5-1': [10, 50, 0.25],
+  'claude-opus-5': [5, 25, 0.5],
+  'claude-opus-4-8': [5, 25, 0.5]
+};
+const USAGE_FEATURE = /^[a-z-]{1,20}$/;
+const USAGE_KEEP_DAYS = 400;
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -70,6 +87,9 @@ export default {
         const id = url.pathname.slice('/api/jobs/'.length);
         if (!JOB_ID.test(id)) return json({ error: 'Not found.' }, 404);
         return await env.CLAUDE_JOBS.get(env.CLAUDE_JOBS.idFromName(id)).fetch('https://job/status');
+      }
+      if (url.pathname === '/api/usage' && request.method === 'GET') {
+        return await usageStub(env).fetch('https://usage/list');
       }
       if (url.pathname === '/api/sync' && request.method === 'POST') {
         const stub = env.WATCH_STORE.get(env.WATCH_STORE.idFromName('watchlist'));
@@ -116,6 +136,7 @@ async function tmdb(url, env, ctx) {
   const res = await fetch(upstream, {
     headers: { Authorization: 'Bearer ' + env.TMDB_TOKEN, Accept: 'application/json' }
   });
+  ctx.waitUntil(recordUsage(env, { tmdb: 1 }));
   const body = await res.text();
   const out = new Response(body, {
     status: res.status,
@@ -148,6 +169,7 @@ async function ratings(url, env, ctx) {
   let scores = stored && scoresFresh(stored) ? stored : null;
   if (!scores) {
     try {
+      ctx.waitUntil(recordUsage(env, { omdb: 1 }));
       scores = await omdbScores(id, env);
       await store.fetch('https://scores/put', { method: 'POST', body: JSON.stringify({ id, scores }) });
     } catch (e) {
@@ -192,7 +214,10 @@ async function omdbScores(id, env) {
 // ── Claude ─────────────────────────────────────────────────
 // One Messages API call. The app supplies the prompt and a JSON schema; the
 // model, key and limits are fixed here. Returns the parsed JSON answer.
-async function callClaude(env, { system, content, schema, effort }) {
+// `used` collects each call's usage for the caller to record in one go: the
+// free plan allows only 50 outside requests per invocation, so a long import
+// can't spend one per call on bookkeeping.
+async function callClaude(env, { system, content, schema, effort, feature, used }) {
   const body = {
     model: env.CLAUDE_MODEL || CLAUDE_MODEL_DEFAULT,
     max_tokens: 16000,
@@ -216,6 +241,8 @@ async function callClaude(env, { system, content, schema, effort }) {
     body: JSON.stringify(body)
   });
   const data = await res.json().catch(() => ({}));
+  // Billed whatever the answer turns out to be, so counted first.
+  if (data.usage && used) used.push(claudeUsage(feature, data.model || body.model, data.usage));
   if (!res.ok) {
     const err = new Error((data.error && data.error.message) || ('Claude returned ' + res.status));
     err.retry = res.status === 429 || res.status >= 500;
@@ -226,6 +253,18 @@ async function callClaude(env, { system, content, schema, effort }) {
   if (data.stop_reason === 'max_tokens') throw final('Claude ran out of room answering. Try fewer photos at once.');
   const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   try { return JSON.parse(text); } catch (e) { throw final("Claude's answer couldn't be read. Try again."); }
+}
+
+// One call's tokens and estimated cost, filed under the feature that made it.
+function claudeUsage(feature, model, u) {
+  const [inp, out, read] = CLAUDE_PRICES[model] || CLAUDE_PRICES[CLAUDE_MODEL_DEFAULT];
+  const tokIn = u.input_tokens || 0, tokOut = u.output_tokens || 0;
+  const cacheRead = u.cache_read_input_tokens || 0, cacheWrite = u.cache_creation_input_tokens || 0;
+  return {
+    feature: USAGE_FEATURE.test(feature || '') ? feature : 'other',
+    calls: 1, tokIn: tokIn + cacheRead + cacheWrite, tokOut,
+    cost: (tokIn * inp + tokOut * out + cacheRead * read + cacheWrite * inp * 1.25) / 1e6
+  };
 }
 
 // A job: { system, schema, effort, content } for one call, or { …, intro,
@@ -305,6 +344,53 @@ async function lookupTitle(env, { title, year, type }, budget) {
     if (r.length) return best(r, type);
   }
   return best(await search('search/multi', {}));
+}
+
+// ── Usage ──────────────────────────────────────────────────
+// Counts of what went out to Claude, OMDb and TMDB, one record per UTC day.
+// Counting never gets in the way of the call it counts.
+function usageStub(env) {
+  return env.USAGE.get(env.USAGE.idFromName('usage'));
+}
+async function recordUsage(env, delta) {
+  try {
+    await usageStub(env).fetch('https://usage/add', { method: 'POST', body: JSON.stringify(delta) });
+  } catch (e) {}
+}
+
+export class UsageStore {
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
+
+  async fetch(request) {
+    const path = new URL(request.url).pathname;
+    const storage = this.ctx.storage;
+    if (path === '/add' && request.method === 'POST') {
+      const d = await request.json();
+      const key = 'day:' + new Date().toISOString().slice(0, 10);
+      const day = (await storage.get(key)) || { claude: {}, omdb: 0, tmdb: 0 };
+      day.omdb += Number(d.omdb) || 0;
+      day.tmdb += Number(d.tmdb) || 0;
+      for (const c of Array.isArray(d.claude) ? d.claude : []) {
+        const name = USAGE_FEATURE.test(c.feature || '') ? c.feature : 'other';
+        const f = day.claude[name] || (day.claude[name] = { calls: 0, tokIn: 0, tokOut: 0, cost: 0 });
+        for (const k of ['calls', 'tokIn', 'tokOut', 'cost']) f[k] += Number(c[k]) || 0;
+      }
+      await storage.put(key, day);
+      return json({ ok: true });
+    }
+    if (path === '/list') {
+      const since = 'day:' + new Date(Date.now() - USAGE_KEEP_DAYS * 864e5).toISOString().slice(0, 10);
+      const days = {};
+      for (const [k, v] of await storage.list({ prefix: 'day:' })) {
+        if (k < since) await storage.delete(k);
+        else days[k.slice(4)] = v;
+      }
+      return json({ today: new Date().toISOString().slice(0, 10), days });
+    }
+    return json({ error: 'Not found.' }, 404);
+  }
 }
 
 // ── Score store ────────────────────────────────────────────
@@ -404,7 +490,7 @@ export class ClaudeJob {
       await storage.put('job', {
         id: req.id,
         status: 'reading',
-        system: req.system, schema: req.schema, effort: req.effort,
+        system: req.system, schema: req.schema, effort: req.effort, feature: req.feature,
         resolve: typeof req.resolve === 'string' ? req.resolve : '',
         keys,
         attempts: 0,
@@ -455,15 +541,23 @@ export class ClaudeJob {
 
   // Ask Claude, a piece at a time for a long list (a few at once).
   async read(job) {
-    const answers = [];
-    for (let i = 0; i < job.keys.length; i += 4) {
-      const batch = [];
-      for (let j = i; j < Math.min(job.keys.length, i + 4); j++) {
-        const got = await this.ctx.storage.get(job.keys[j]);
-        const content = job.keys[j].map(k => got.get(k));
-        batch.push(callClaude(this.env, { system: job.system, content, schema: job.schema, effort: job.effort }));
+    const answers = [], used = [];
+    try {
+      for (let i = 0; i < job.keys.length; i += 4) {
+        const batch = [];
+        for (let j = i; j < Math.min(job.keys.length, i + 4); j++) {
+          const got = await this.ctx.storage.get(job.keys[j]);
+          const content = job.keys[j].map(k => got.get(k));
+          batch.push(callClaude(this.env, { system: job.system, content, schema: job.schema, effort: job.effort, feature: job.feature, used }));
+        }
+        // Let every call in the batch finish, so all of them are counted.
+        const settled = await Promise.allSettled(batch);
+        const failed = settled.find(r => r.status === 'rejected');
+        if (failed) throw failed.reason;
+        answers.push(...settled.map(r => r.value));
       }
-      answers.push(...await Promise.all(batch));
+    } finally {
+      if (used.length) await recordUsage(this.env, { claude: used });
     }
     if (!job.resolve) {
       job.result = answers[0];
@@ -488,6 +582,7 @@ export class ClaudeJob {
       batch.forEach((it, k) => { it.match = matches[k]; });
       job.cursor += batch.length;
     }
+    if (budget.left < JOB_FETCH_BUDGET) await recordUsage(this.env, { tmdb: JOB_FETCH_BUDGET - budget.left });
     job.attempts = 0;
     if (job.cursor >= job.items.length) {
       job.result[job.resolve] = job.items;
