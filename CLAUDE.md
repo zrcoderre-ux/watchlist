@@ -60,10 +60,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
   title. Discover thins TMDB's lists by it and "For you" tells Claude about
   it. No title's chance goes below `TASTE_FLOOR`; never let it reach zero.
-- "For you" keeps only titles TMDB's audience rates `AI_MIN_SCORE` (8) or
-  more on at least `AI_MIN_VOTES` votes, unless Claude marks the pick
-  `strongMatch`. Claude is told the bar; the app enforces it on the matched
-  TMDB rating.
+- "For you" keeps only titles that clear a bar, unless Claude marks the pick
+  `strongMatch`: Rotten Tomatoes critics at `AI_MIN_RT` (80%) or more where
+  OMDb has a score (looked up per pick, so up to 20 OMDb calls a tap),
+  otherwise TMDB's audience at `AI_MIN_SCORE` (8) or more on at least
+  `AI_MIN_VOTES` votes. Claude is told the bar; the app enforces it.
 - A "For you" request lives in `aiRun`, keyed by the filters it was asked
   with, not in the deck: switching lists leaves it running, and its picks wait
   (dot on the chip, a toast) until "For you" is chosen again with the same
