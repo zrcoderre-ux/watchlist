@@ -23,6 +23,16 @@ class_name = "WatchStore"
 tag = "v1"
 new_sqlite_classes = ["WatchStore"]
 
+# Claude jobs (imports, suggestions, Tonight's picks) run in one of these each,
+# driven by an alarm, so they finish even when the phone suspends the app.
+[[durable_objects.bindings]]
+name = "CLAUDE_JOBS"
+class_name = "ClaudeJob"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ClaudeJob"]
+
 # Secrets, set once and never here:
 #   npx wrangler secret put APP_PASSCODE
 #   npx wrangler secret put TMDB_TOKEN
