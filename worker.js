@@ -4,6 +4,9 @@
 //
 //   GET  /api/tmdb/<path>  The Movie Database (TMDB) v3, read-only, with the
 //                          server's read token. Cached at the edge.
+//   GET  /api/ratings/<imdb id>
+//                          Rotten Tomatoes, IMDb and Metacritic scores from
+//                          OMDb, with the server's key. Cached at the edge.
 //   POST /api/jobs         Starts a Claude job; GET /api/jobs/<id> polls it.
 //                          The work runs in a Durable Object, so it carries on
 //                          when the phone puts the app in the background.
@@ -17,11 +20,16 @@
 //   npx wrangler secret put APP_PASSCODE
 //   npx wrangler secret put TMDB_TOKEN          (TMDB "API Read Access Token")
 //   npx wrangler secret put ANTHROPIC_API_KEY
+//   npx wrangler secret put OMDB_KEY            (optional: critics' scores)
 
 const TMDB_BASE = 'https://api.themoviedb.org/3/';
 // The TMDB paths the app reads. Anything else is refused rather than proxied.
 const TMDB_ALLOWED = /^(trending|discover|search|movie|tv|watch\/providers|genre)\//;
 const TMDB_CACHE_SECONDS = 6 * 3600;       // providers update daily; trending weekly
+
+const OMDB_BASE = 'https://www.omdbapi.com/';
+const OMDB_CACHE_SECONDS = 24 * 3600;      // the free key allows 1,000 lookups a day
+const IMDB_ID = /^tt\d{5,10}$/;
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL_DEFAULT = 'claude-opus-5-5';
@@ -48,8 +56,9 @@ export default {
     }
 
     try {
-      if (url.pathname === '/api/ping') return json({ ok: true, tmdb: !!env.TMDB_TOKEN, claude: !!env.ANTHROPIC_API_KEY });
+      if (url.pathname === '/api/ping') return json({ ok: true, tmdb: !!env.TMDB_TOKEN, claude: !!env.ANTHROPIC_API_KEY, omdb: !!env.OMDB_KEY });
       if (url.pathname.startsWith('/api/tmdb/') && request.method === 'GET') return await tmdb(url, env, ctx);
+      if (url.pathname.startsWith('/api/ratings/') && request.method === 'GET') return await ratings(url, env, ctx);
       if (url.pathname === '/api/jobs' && request.method === 'POST') return await startJob(request, env);
       if (url.pathname.startsWith('/api/jobs/') && request.method === 'GET') {
         const id = url.pathname.slice('/api/jobs/'.length);
@@ -110,6 +119,42 @@ async function tmdb(url, env, ctx) {
     }
   });
   if (res.ok) ctx.waitUntil(cache.put(cacheKey, out.clone()));
+  return out;
+}
+
+// ── Ratings ────────────────────────────────────────────────
+// A title's Rotten Tomatoes (critics), IMDb and Metacritic scores, looked up on
+// OMDb by IMDb id. Only the three numbers go back; null where OMDb has none.
+// Without OMDB_KEY the answer is { off: true } and the app stops asking.
+async function ratings(url, env, ctx) {
+  if (!env.OMDB_KEY) return json({ off: true });
+  const id = url.pathname.slice('/api/ratings/'.length);
+  if (!IMDB_ID.test(id)) return json({ error: 'Not found.' }, 404);
+
+  // The cache key leaves the key out, as with TMDB.
+  const cacheKey = new Request(OMDB_BASE + '?i=' + id);
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+
+  const res = await fetch(OMDB_BASE + '?' + new URLSearchParams({ i: id, apikey: env.OMDB_KEY }), {
+    headers: { Accept: 'application/json' }
+  });
+  const data = await res.json().catch(() => ({}));
+  // An unknown title is an answer; a bad key or the day's limit is not, and
+  // isn't cached.
+  if (data.Response !== 'True' && !/not found|incorrect imdb/i.test(data.Error || '')) {
+    return json({ error: 'OMDb: ' + (data.Error || 'returned ' + res.status) }, 502);
+  }
+  const num = (v, max) => {
+    const n = parseFloat(String(v || '').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(n) && n >= 0 && n <= max ? n : null;
+  };
+  const rt = ((data.Ratings || []).find(r => r && r.Source === 'Rotten Tomatoes') || {}).Value;
+  const out = json({ rt: num(rt, 100), imdb: num(data.imdbRating, 10), mc: num(data.Metascore, 100) }, 200, {
+    'Cache-Control': `public, max-age=${OMDB_CACHE_SECONDS}`
+  });
+  ctx.waitUntil(cache.put(cacheKey, out.clone()));
   return out;
 }
 

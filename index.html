@@ -683,6 +683,10 @@ textarea.text-input:focus { padding: 11px 15px; }
 .tagline { font-style: italic; color: var(--on-surface-variant); }
 .genre-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .genre-chips span { font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); background: var(--surface-high); color: var(--on-surface-variant); }
+.scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.score { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: var(--r-md); background: var(--surface-high); }
+.score .v { font-size: 18px; line-height: 24px; font-weight: 500; }
+.score .l { font-size: 11px; line-height: 16px; color: var(--on-surface-variant); text-align: center; }
 .sec-title { font-size: 14px; font-weight: 500; color: var(--on-surface); margin-bottom: 8px; }
 .prov-list { display: flex; flex-wrap: wrap; gap: 10px; }
 .prov-chip { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: var(--r-md); background: var(--surface-high); font-size: 13px; }
@@ -1035,6 +1039,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
               <div class="attribution">
                 <span>Movie and TV data from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
                 <span>Streaming availability from <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a>, via TMDB.</span>
+                <span>Rotten Tomatoes, IMDb and Metacritic scores via <a href="https://www.omdbapi.com/" target="_blank" rel="noopener">OMDb</a>.</span>
                 <span>Suggestions and photo reading by Claude.</span>
               </div>
             </div>
@@ -1072,7 +1077,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 const REGIONS = [
@@ -1111,6 +1116,7 @@ let syncing = false;
 let syncError = '';
 // Per-device cache of TMDB details: runtime, cast, and where it streams.
 let details = {};
+let ratingsOff = false;         // the server has no OMDb key, so no critics' scores
 // Titles seen this session that aren't in `items` (deck cards, search results).
 const titles = {};
 
@@ -1430,8 +1436,10 @@ async function getDetails(key, force = false) {
   if (detailsInflight.has(key)) return detailsInflight.get(key);
   const [type, id] = key.split(':');
   const p = (async () => {
-    const r = await tmdb(`${type}/${id}`, { append_to_response: 'watch/providers,credits' });
+    const r = await tmdb(`${type}/${id}`, { append_to_response: 'watch/providers,credits,external_ids' });
     const crew = (r.credits && r.credits.crew) || [];
+    const imdb = r.imdb_id || (r.external_ids && r.external_ids.imdb_id) || '';
+    const prev = details[key];
     const d = {
       at: Date.now(),
       region: prefs.region,
@@ -1442,7 +1450,9 @@ async function getDetails(key, force = false) {
       tagline: r.tagline || '',
       cast: ((r.credits && r.credits.cast) || []).slice(0, 6).map(c => c.name),
       director: type === 'movie' ? (crew.find(c => c.job === 'Director') || {}).name || '' : (r.created_by || []).map(c => c.name).join(', '),
-      providers: parseProviders(r['watch/providers'])
+      providers: parseProviders(r['watch/providers']),
+      imdb,
+      ratings: prev && prev.imdb === imdb ? prev.ratings : null
     };
     details[key] = d;
     saveDetails();
@@ -1456,6 +1466,21 @@ async function getDetails(key, force = false) {
   })();
   detailsInflight.set(key, p);
   try { return await p; } finally { detailsInflight.delete(key); }
+}
+// Critics' scores, from OMDb through the server. Asked for only when a title's
+// sheet opens (the free key allows 1,000 lookups a day) and kept with the
+// details: { at, rt, imdb, mc }, null where there's no score.
+async function getRatings(key) {
+  const d = details[key];
+  if (ratingsOff || !d || !d.imdb) return null;
+  if (d.ratings && Date.now() - d.ratings.at < DETAILS_STALE_MS) return d.ratings;
+  const imdb = d.imdb;
+  const r = await api('/api/ratings/' + imdb);
+  if (r.off) { ratingsOff = true; return null; }
+  const s = { at: Date.now(), rt: r.rt == null ? null : r.rt, imdb: r.imdb == null ? null : r.imdb, mc: r.mc == null ? null : r.mc };
+  const cur = details[key];
+  if (cur && cur.imdb === imdb) { cur.ratings = s; saveDetails(); }
+  return s;
 }
 function myProviders(key) {
   const d = details[key];
@@ -2131,7 +2156,14 @@ function openDetail(key) {
   const t = getTitle(key);
   if (!t) return;
   renderDetail(key);
-  if (passcode) getDetails(key).then(() => fillDetail(key)).catch(e => {
+  if (!passcode) return;
+  // Details cached before the IMDb id was kept are fetched again for it.
+  const old = details[key] && details[key].imdb === undefined;
+  getDetails(key, old).then(() => {
+    fillDetail(key);
+    // No scores is no row; it isn't worth an error.
+    getRatings(key).then(() => fillDetail(key)).catch(() => {});
+  }).catch(e => {
     const w = $('where-to-watch');
     if (w && $('sheet').dataset.key === key) w.innerHTML = `<div class="muted">${esc(e.message)}</div>`;
   });
@@ -2232,6 +2264,7 @@ function renderDetail(key) {
           <div class="m" id="detail-meta">${detailMetaHtml(key)}</div>
         </div>
       </div>
+      <div class="scores" id="detail-scores"${detailScoresHtml(key) ? '' : ' hidden'}>${detailScoresHtml(key)}</div>
       ${(t.genres || []).length ? `<div class="genre-chips">${t.genres.map(g => `<span>${esc(g)}</span>`).join('')}</div>` : ''}
       ${it && it.aiReason && it.status === 'want' ? `<div class="ai-note">${icon('wandStars')}<span>${esc(it.aiReason)}</span></div>` : t.aiReason ? `<div class="ai-note">${icon('wandStars')}<span>${esc(t.aiReason)}</span></div>` : ''}
       ${detailActions(key)}
@@ -2247,6 +2280,15 @@ function detailMetaHtml(key) {
   const tvBits = d && t.type === 'tv' && d.episodes ? ` · ${d.episodes} episodes${d.showStatus ? ' · ' + esc(d.showStatus) : ''}` : '';
   return `${esc(metaLine(t))}${tvBits}${t.vote ? ' · ★ ' + Number(t.vote).toFixed(1) : ''}`;
 }
+function detailScoresHtml(key) {
+  const s = details[key] && details[key].ratings;
+  if (!s) return '';
+  const bits = [];
+  if (s.rt != null) bits.push([s.rt + '%', 'Rotten Tomatoes']);
+  if (s.imdb != null) bits.push([Number(s.imdb).toFixed(1), 'IMDb']);
+  if (s.mc != null) bits.push([String(s.mc), 'Metacritic']);
+  return bits.map(([v, l]) => `<div class="score"><span class="v">${esc(v)}</span><span class="l">${l}</span></div>`).join('');
+}
 function detailPeopleHtml(key) {
   const t = getTitle(key), d = details[key];
   if (!d) return '';
@@ -2259,6 +2301,9 @@ function fillDetail(key) {
   const d = details[key];
   $('detail-meta').innerHTML = detailMetaHtml(key);
   $('detail-people').innerHTML = detailPeopleHtml(key);
+  const sc = $('detail-scores');
+  sc.innerHTML = detailScoresHtml(key);
+  sc.hidden = !sc.innerHTML;
   const tg = $('detail-tagline');
   tg.textContent = (d && d.tagline) || '';
   tg.hidden = !(d && d.tagline);
