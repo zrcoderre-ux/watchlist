@@ -1094,13 +1094,14 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
 // lookups against the free key's daily allowance.
 const CLAUDE_MONTHLY_CREDIT = 100;
 const OMDB_DAILY_LIMIT = 1000;
+const OMDB_BACKGROUND_SHARE = 700;   // the server's cap on background filling, for the panel
 const USAGE_FEATURES = { 'for-you': 'For you', tonight: "Tonight's picks", import: 'Imports', other: 'Other' };
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
@@ -1155,6 +1156,9 @@ let syncError = '';
 // Per-device cache of TMDB details: runtime, cast, and where it streams.
 let details = {};
 let ratingsOff = false;         // the server has no OMDb key, so no critics' scores
+// When the server says OMDb's day is used up (all) or background filling has
+// had its share (background): no asking again until then.
+const ratingsPausedUntil = { all: 0, background: 0 };
 // Titles seen this session that aren't in `items` (deck cards, search results).
 const titles = {};
 
@@ -1321,7 +1325,7 @@ function setTonightType(t) { tonightType = t; lsSet('wl.tonightType', t); render
 
 // ── Server API ─────────────────────────────────────────────
 class ApiError extends Error {
-  constructor(msg, status) { super(msg); this.status = status; }
+  constructor(msg, status, data) { super(msg); this.status = status; this.data = data || {}; }
 }
 async function api(path, opts = {}) {
   let res;
@@ -1336,7 +1340,7 @@ async function api(path, opts = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) throw new ApiError('Wrong passcode. Check it in Settings.', 401);
-    throw new ApiError(data.error || data.status_message || ('Server error ' + res.status), res.status);
+    throw new ApiError(data.error || data.status_message || ('Server error ' + res.status), res.status, data);
   }
   return data;
 }
@@ -1519,14 +1523,29 @@ async function getDetails(key, force = false) {
 // sheet opens (the free key allows 1,000 lookups a day) and kept with the
 // details: { at, rt, imdb, mc }, null where there's no score.
 const ratingsInflight = new Map();
-async function getRatings(key) {
+// `background` marks a lookup nobody is looking at yet (the watchlist fill):
+// the server gives those only part of OMDb's day.
+async function getRatings(key, { background = false } = {}) {
   const d = details[key];
   if (ratingsOff || !d || !d.imdb) return null;
   if (ratingsFresh(key)) return d.ratings;
+  const now = Date.now();
+  if (now < ratingsPausedUntil.all || (background && now < ratingsPausedUntil.background)) return d.ratings || null;
   if (ratingsInflight.has(key)) return ratingsInflight.get(key);
   const imdb = d.imdb;
   const p = (async () => {
-    const r = await api('/api/ratings/' + imdb);
+    let r;
+    try {
+      r = await api('/api/ratings/' + imdb + (background ? '?bg=1' : ''));
+    } catch (e) {
+      if (e.status === 429 && e.data.paused) {
+        const until = Date.now() + (e.data.retryAfter || 3600) * 1000;
+        ratingsPausedUntil[e.data.paused] = until;
+        if (e.data.paused === 'all') ratingsPausedUntil.background = until;
+        return d.ratings || null;
+      }
+      throw e;
+    }
     if (r.off) { ratingsOff = true; return null; }
     const s = { at: Date.now(), rt: r.rt == null ? null : r.rt, imdb: r.imdb == null ? null : r.imdb, mc: r.mc == null ? null : r.mc };
     const cur = details[key];
@@ -1572,7 +1591,7 @@ async function refreshStaleDetails(limit = 60) {
   try {
     await pool(keys, 4, async k => { await getDetails(k); rerender(); });
     await pool(scoreKeys, 4, async k => {
-      try { await getRatings(k); rerender(); } catch (e) {}
+      try { await getRatings(k, { background: true }); rerender(); } catch (e) {}
     });
   } finally { refreshing = false; }
 }
@@ -2995,6 +3014,10 @@ async function renderUsage() {
     <div class="sec-title" style="margin:6px 0 0">Today</div>
     ${row('OMDb lookups', `${today.omdb.toLocaleString()} of ${OMDB_DAILY_LIMIT.toLocaleString()}`)}
     ${bar(omdbFrac, 0.8)}
+    ${today.omdbRefused ? row('Refused once the limit was reached', today.omdbRefused.toLocaleString()) : ''}
+    <div class="small muted">${today.omdbRefused || Date.now() < ratingsPausedUntil.all
+      ? `OMDb's limit is used up today; new scores resume at ${esc(new Date(Date.parse(u.today + 'T00:00:00Z') + 864e5).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}. Saved scores still show.`
+      : `Filling in your lists' scores in the background stops at ${OMDB_BACKGROUND_SHARE.toLocaleString()}, leaving the rest for cards you're looking at.`}</div>
     ${row('TMDB requests (no daily limit)', today.tmdb.toLocaleString())}
     <div class="small muted">Days run on UTC, so "today" starts at ${esc(new Date(Date.UTC(2000, 0, 1)).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))} your time. Saved scores and cached answers aren't counted; only calls that went out.</div>
   </div>`;

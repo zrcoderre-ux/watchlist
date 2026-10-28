@@ -36,6 +36,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   `ScoreStore` Durable Object and re-asked of OMDb only after 14 days for a
   title from this year or last, 180 for older ones (the free key allows 1,000
   lookups a day). If OMDb refuses, stored scores are served however old.
+  Once OMDb says the day's limit is reached, the server asks it nothing more
+  until the next UTC day (`limitedDay`) and answers 429 with `paused` and
+  `retryAfter`; the app then stops asking too (`ratingsPausedUntil`).
+  Background filling (`?bg=1`, from `refreshStaleDetails`) stops at
+  `OMDB_BACKGROUND_SHARE` (700) a day, keeping the rest for what's on screen.
   Every outgoing Claude, OMDb and TMDB call is counted by UTC day in the
   `UsageStore` Durable Object (`/api/usage`, shown in Settings → Usage);
   Claude's cost is estimated from `CLAUDE_PRICES` in `worker.js` (update it
