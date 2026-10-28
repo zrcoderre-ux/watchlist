@@ -147,7 +147,7 @@ html, body {
 body { position: fixed; inset: 0; }
 .scroll { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
-button { -webkit-user-select: none; user-select: none; cursor: pointer; }
+button { -webkit-user-select: none; user-select: none; cursor: pointer; touch-action: manipulation; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 img { display: block; }
@@ -158,12 +158,12 @@ svg.mi { width: 24px; height: 24px; fill: currentColor; flex-shrink: 0; }
 /* ── State layers ─────────────────────────────────────────── */
 @media (hover: hover) {
   .icon-btn:hover, .nav-btn:hover .nav-icon, .chip:hover, .btn:hover, .round-btn:hover,
-  .wl-row:hover, .result-row:hover, .setting-row:hover, .prov-tile:hover, .seg button:hover {
+  .wl-row:hover, .result-row:hover, .setting-row:hover, .prov-tile:hover, .seg button:hover, .rate-choice:hover {
     background-image: linear-gradient(var(--hover-layer), var(--hover-layer));
   }
 }
 .icon-btn:active, .nav-btn:active .nav-icon, .chip:active, .btn:active, .round-btn:active,
-.wl-row:active, .result-row:active, .setting-row:active, .prov-tile:active, .seg button:active {
+.wl-row:active, .result-row:active, .setting-row:active, .prov-tile:active, .seg button:active, .rate-choice:active {
   background-image: linear-gradient(var(--press-layer), var(--press-layer));
 }
 
@@ -690,8 +690,31 @@ textarea.text-input:focus { padding: 11px 15px; }
 .prov-chip.mine { background: var(--success-container); color: var(--on-success-container); }
 .muted { color: var(--on-surface-variant); }
 .small { font-size: 12px; line-height: 16px; }
-.rate-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.rate-row .btn.on { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+.btn.on { background-color: var(--secondary-container); color: var(--on-secondary-container); }
+/* How was it? Three big targets; the one tapped holds its outline for a
+   moment before anything happens, so the tap visibly lands. */
+.rate-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.rate-choice {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+  min-height: 80px;
+  padding: 10px 4px;
+  border-radius: var(--r-lg);
+  border: 3px solid transparent;
+  font-weight: 500;
+  text-align: center;
+  touch-action: manipulation;
+  transition: transform 0.12s, opacity 0.2s, border-color 0.15s;
+}
+.rate-choice svg { width: 30px; height: 30px; }
+.rate-choice.loved { background-color: var(--tertiary-container); color: var(--on-tertiary-container); }
+.rate-choice.liked { background-color: var(--success-container); color: var(--on-success-container); }
+.rate-choice.nope { background-color: var(--error-container); color: var(--on-error-container); }
+.rate-choice:active { transform: scale(0.94); }
+.rate-choice.on { border-color: currentColor; }
+.rate-choice.chosen { transform: scale(1.05); }
+.rate-choice.dim { opacity: 0.35; }
+.rate-area { display: flex; flex-direction: column; gap: 8px; }
 
 /* The add sheet's search results and the import review list */
 .result-row {
@@ -1043,7 +1066,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 const REGIONS = [
@@ -1270,15 +1293,40 @@ async function tmdb(path, params = {}) {
   return p;
 }
 
-// Ask Claude for JSON matching `schema`. content is the user turn's blocks.
-async function askClaude({ system, content, schema, effort = 'medium' }) {
-  const r = await api('/api/claude', {
+// Ask Claude for JSON matching `schema`. content is the user turn's blocks;
+// or pass intro + text for a long list, which the server reads in pieces.
+// With resolve naming an array in the answer, the server also looks each
+// { title, year, type } in it up on TMDB (see matchToTitle).
+// It runs as a job on the server, so it finishes even if the phone puts the
+// app in the background; this polls until the answer is ready.
+async function askClaude({ system, content, schema, effort = 'medium', intro, text, resolve, onStart, onProgress }) {
+  const { id } = await api('/api/jobs', {
     method: 'POST',
-    body: JSON.stringify({ system, content, schema, effort })
+    body: JSON.stringify({ system, content, schema, effort, intro, text, resolve })
   });
-  if (r.stop_reason === 'refusal') throw new ApiError("Claude declined that one. Try rewording it.", 200);
-  if (r.stop_reason === 'max_tokens') throw new ApiError('Claude ran out of room answering. Try fewer photos at once.', 200);
-  try { return JSON.parse(r.text); } catch (e) { throw new ApiError("Claude's answer couldn't be read. Try again.", 200); }
+  if (onStart) onStart(id);
+  return waitForJob(id, onProgress);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitForJob(id, onProgress) {
+  const started = Date.now();
+  let misses = 0;
+  for (;;) {
+    await sleep(1500);
+    let s;
+    try {
+      s = await api('/api/jobs/' + id);
+      misses = 0;
+    } catch (e) {
+      // A suspended app's requests fail; keep asking once it wakes.
+      if (e.status === 401 || e.status === 404 || ++misses > 40) throw e;
+      continue;
+    }
+    if (s.status === 'done') return s.result;
+    if (s.status === 'error') throw new ApiError(s.error || 'Claude ran into a problem. Try again.', 200);
+    if (onProgress) onProgress(s);
+    if (Date.now() - started > 20 * 60000) throw new ApiError('That took too long. Try again.', 0);
+  }
 }
 
 // ── Titles ─────────────────────────────────────────────────
@@ -1736,6 +1784,7 @@ async function decide(action, el) {
     renderDeck();
     openRateSheet(t, rating => {
       recordDecision(t, { status: 'watched', myRating: rating, source: 'swipe' });
+      toast(`${t.title}: ${ratingLabel(rating).toLowerCase()}`, 'Undo', undoDecision);
     }, () => { deck.unshift(t); renderDeck(); });
     return;
   }
@@ -1822,38 +1871,23 @@ async function aiSuggestions() {
       text: (taste || 'They have not rated anything yet. Suggest a varied set of widely loved, recent titles.') +
         `\n\nSuggest 20 titles.${asks.length ? ' ' + asks.join(' ') : ''}` +
         (known > 300 ? '\n(Their lists above are trimmed to the most recent entries; they have more.)' : '')
-    }]
+    }],
+    resolve: 'suggestions'
   });
-  const resolved = await pool(r.suggestions || [], 5, async s => {
-    const t = await resolveTitle(s);
+  let out = (r.suggestions || []).map(s => {
+    const t = matchToTitle(s);
     if (t) t.aiReason = s.reason;
     return t;
-  });
-  let out = resolved.filter(Boolean);
+  }).filter(Boolean);
   if (deckFilters.mine && prefs.services.length) {
     await pool(out, 5, t => getDetails(t.key));
     out = out.filter(t => onMyServices(t.key) !== false);
   }
   return out;
 }
-// Find a title Claude named (or read from a photo) on TMDB.
-async function resolveTitle({ title, year, type }) {
-  const q = String(title || '').trim();
-  if (!q) return null;
-  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const best = (results, t) => {
-    const list = (results || []).map(r => normalize(r, t)).filter(Boolean);
-    return list.find(x => norm(x.title) === norm(q) && (!year || Math.abs(Number(x.year) - year) <= 1)) ||
-      list.find(x => norm(x.title) === norm(q)) || list[0] || null;
-  };
-  if (type === 'movie' || type === 'tv') {
-    const yk = type === 'movie' ? 'year' : 'first_air_date_year';
-    let r = await tmdb('search/' + type, year ? { query: q, [yk]: year } : { query: q });
-    if (!(r.results || []).length && year) r = await tmdb('search/' + type, { query: q });
-    if ((r.results || []).length) return best(r.results, type);
-  }
-  const r = await tmdb('search/multi', { query: q });
-  return best((r.results || []).filter(x => x.media_type === 'movie' || x.media_type === 'tv'));
+// A title the server matched on TMDB for Claude, in the app's shape.
+function matchToTitle(f) {
+  return f && f.match ? normalize(f.match.r, f.match.type) : null;
 }
 
 // ── Watchlist ──────────────────────────────────────────────
@@ -1995,7 +2029,7 @@ function openDetail(key) {
   const t = getTitle(key);
   if (!t) return;
   renderDetail(key);
-  if (passcode) getDetails(key).then(() => { if (sheetOpen && $('sheet').dataset.key === key) renderDetail(key); }).catch(e => {
+  if (passcode) getDetails(key).then(() => fillDetail(key)).catch(e => {
     const w = $('where-to-watch');
     if (w && $('sheet').dataset.key === key) w.innerHTML = `<div class="muted">${esc(e.message)}</div>`;
   });
@@ -2020,23 +2054,50 @@ function whereToWatchHtml(key) {
 function detailActions(key) {
   const st = statusOf(key);
   const it = items[key];
+  const rateArea = `<div class="rate-area" id="rate-area" hidden><div class="sec-title" style="margin:0">How was it?</div>${rateChoicesHtml(null)}</div>`;
   if (st === 'want') return `<div class="btn-row">
-      <button class="btn filled" onclick="showRateRow()">${icon('check')}Mark watched</button>
+      <button class="btn filled" id="rate-reveal" onclick="showRateRow(this)">${icon('check')}Mark watched</button>
       <button class="btn danger" onclick="removeFromList('${esc(key)}')">${icon('delete')}Remove</button>
-    </div><div id="rate-area" hidden>${rateRowHtml(key, null)}</div>`;
-  if (st === 'watched') return `<div><div class="sec-title">How was it?</div>${rateRowHtml(key, it.myRating)}</div>
+    </div>${rateArea}`;
+  if (st === 'watched') return `<div class="rate-area"><div class="sec-title" style="margin:0">How was it?</div>${rateChoicesHtml(it.myRating)}</div>
     <div class="btn-row"><button class="btn outlined" onclick="detailSet('${esc(key)}', {status:'want'}, 'Back on your watchlist')">${icon('bookmark')}Back to watchlist</button></div>`;
   return `<div class="btn-row">
       <button class="btn filled" onclick="detailSet('${esc(key)}', {status:'want', source:'search'}, 'Added to watchlist')">${icon('add')}Add to watchlist</button>
-      <button class="btn tonal" onclick="showRateRow()">${icon('visibility')}Seen it</button>
+      <button class="btn tonal" id="rate-reveal" onclick="showRateRow(this)">${icon('visibility')}Seen it</button>
       ${st !== 'pass' ? `<button class="btn" onclick="detailSet('${esc(key)}', {status:'pass'}, 'Hidden from Discover')">Not interested</button>` : ''}
-    </div><div id="rate-area" hidden>${rateRowHtml(key, null)}</div>`;
+    </div>${rateArea}`;
 }
-function rateRowHtml(key, cur) {
-  const b = (r, ic, label) => `<button class="btn tonal${cur === r ? ' on' : ''}" onclick="detailSet('${esc(key)}', {status:'watched', myRating:${r}}, 'Marked watched')">${icon(ic)}${label}</button>`;
-  return `<div class="rate-row">${b(2, 'favoriteFill', 'Loved it')}${b(1, 'thumbUp', 'Liked it')}${b(-1, 'thumbDown', 'Not for me')}</div>`;
+const RATINGS = [[2, 'favoriteFill', 'Loved it', 'loved'], [1, 'thumbUp', 'Liked it', 'liked'], [-1, 'thumbDown', 'Not for me', 'nope']];
+function ratingLabel(r) { return (RATINGS.find(x => x[0] === r) || [0, '', ''])[2]; }
+function rateChoicesHtml(cur) {
+  return `<div class="rate-choices" role="group" aria-label="How was it?">${RATINGS.map(([r, ic, label, cls]) =>
+    `<button type="button" class="rate-choice ${cls}${cur === r ? ' on' : ''}" data-r="${r}" aria-pressed="${cur === r}">${icon(ic)}<span>${label}</span></button>`).join('')}</div>`;
 }
-function showRateRow() { const a = $('rate-area'); if (a) a.hidden = false; }
+// The chosen button grows and keeps its outline while the others fade, for a
+// beat before the choice is acted on, so it's plain the tap registered.
+function bindRateChoices(root, onPick, onTap) {
+  let picked = false;
+  root.querySelectorAll('.rate-choice').forEach(b => b.addEventListener('click', () => {
+    if (picked) return;
+    picked = true;
+    root.querySelectorAll('.rate-choice').forEach(x => {
+      x.classList.toggle('on', x === b);
+      x.classList.toggle('dim', x !== b);
+      x.setAttribute('aria-pressed', x === b);
+    });
+    b.classList.add('chosen');
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {}
+    if (onTap) onTap();
+    setTimeout(() => onPick(Number(b.dataset.r)), 300);
+  }));
+}
+function showRateRow(btn) {
+  const a = $('rate-area');
+  if (!a) return;
+  a.hidden = false;
+  if (btn) btn.classList.add('on');
+  a.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
 function detailSet(key, patch, msg) {
   const t = getTitle(key);
   if (!t) return;
@@ -2056,9 +2117,6 @@ function renderDetail(key) {
   const t = getTitle(key);
   const d = details[key];
   const it = items[key];
-  const people = d && (d.director || (d.cast || []).length)
-    ? `<div class="small muted">${d.director ? `${t.type === 'tv' ? 'Created by' : 'Directed by'} ${esc(d.director)}<br>` : ''}${(d.cast || []).length ? 'With ' + esc(d.cast.join(', ')) : ''}</div>` : '';
-  const tvBits = d && t.type === 'tv' && d.episodes ? ` · ${d.episodes} episodes${d.showStatus ? ' · ' + esc(d.showStatus) : ''}` : '';
   openSheet(`
     <div class="sheet-body scroll" style="padding-top:0">
       <div class="detail-hero">
@@ -2069,17 +2127,40 @@ function renderDetail(key) {
         ${t.poster ? `<img class="poster" src="${imgUrl(t.poster, 'w342')}" alt="">` : '<span class="poster"></span>'}
         <div>
           <h2>${esc(t.title)}</h2>
-          <div class="m">${esc(metaLine(t))}${tvBits}${t.vote ? ' · ★ ' + Number(t.vote).toFixed(1) : ''}</div>
+          <div class="m" id="detail-meta">${detailMetaHtml(key)}</div>
         </div>
       </div>
       ${(t.genres || []).length ? `<div class="genre-chips">${t.genres.map(g => `<span>${esc(g)}</span>`).join('')}</div>` : ''}
       ${it && it.aiReason && it.status === 'want' ? `<div class="ai-note">${icon('wandStars')}<span>${esc(it.aiReason)}</span></div>` : t.aiReason ? `<div class="ai-note">${icon('wandStars')}<span>${esc(t.aiReason)}</span></div>` : ''}
       ${detailActions(key)}
-      ${d && d.tagline ? `<div class="tagline">${esc(d.tagline)}</div>` : ''}
+      <div class="tagline" id="detail-tagline"${d && d.tagline ? '' : ' hidden'}>${esc(d && d.tagline || '')}</div>
       ${t.overview ? `<div>${esc(t.overview)}</div>` : ''}
-      ${people}
+      <div class="small muted" id="detail-people">${detailPeopleHtml(key)}</div>
       <div><div class="sec-title">Where to watch</div><div id="where-to-watch">${whereToWatchHtml(key)}</div></div>
     </div>`, { key });
+  bindRateChoices($('sheet'), r => detailSet(key, { status: 'watched', myRating: r }, 'Marked watched: ' + ratingLabel(r).toLowerCase()));
+}
+function detailMetaHtml(key) {
+  const t = getTitle(key), d = details[key];
+  const tvBits = d && t.type === 'tv' && d.episodes ? ` · ${d.episodes} episodes${d.showStatus ? ' · ' + esc(d.showStatus) : ''}` : '';
+  return `${esc(metaLine(t))}${tvBits}${t.vote ? ' · ★ ' + Number(t.vote).toFixed(1) : ''}`;
+}
+function detailPeopleHtml(key) {
+  const t = getTitle(key), d = details[key];
+  if (!d) return '';
+  return `${d.director ? `${t.type === 'tv' ? 'Created by' : 'Directed by'} ${esc(d.director)}<br>` : ''}${(d.cast || []).length ? 'With ' + esc(d.cast.join(', ')) : ''}`;
+}
+// When TMDB's details arrive, fill in just those parts, so the sheet doesn't
+// jump or lose what the person has opened in it.
+function fillDetail(key) {
+  if (!sheetOpen || $('sheet').dataset.key !== key) return;
+  const d = details[key];
+  $('detail-meta').innerHTML = detailMetaHtml(key);
+  $('detail-people').innerHTML = detailPeopleHtml(key);
+  const tg = $('detail-tagline');
+  tg.textContent = (d && d.tagline) || '';
+  tg.hidden = !(d && d.tagline);
+  $('where-to-watch').innerHTML = whereToWatchHtml(key);
 }
 
 // The "seen it" swipe: how was it?
@@ -2090,17 +2171,9 @@ function openRateSheet(t, onRate, onCancel) {
     <div class="sheet-head"><h2>You've seen ${esc(t.title)}</h2></div>
     <div class="sheet-body">
       <div class="muted">How was it? Claude uses this to suggest things you'll like.</div>
-      <div class="rate-row" style="flex-direction:column">
-        <button class="btn tonal wide" data-r="2">${icon('favoriteFill')}Loved it</button>
-        <button class="btn tonal wide" data-r="1">${icon('thumbUp')}Liked it</button>
-        <button class="btn tonal wide" data-r="-1">${icon('thumbDown')}Not for me</button>
-      </div>
+      ${rateChoicesHtml(null)}
     </div>`, { onClose: () => { if (!rated && onCancel) onCancel(); } });
-  $('sheet').querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
-    rated = true;
-    onRate(Number(b.dataset.r));
-    closeSheet();
-  });
+  bindRateChoices($('sheet'), r => { onRate(r); closeSheet(); }, () => { rated = true; });
 }
 
 // ── Add: search and import ─────────────────────────────────
@@ -2198,22 +2271,53 @@ const EXTRACT_SYSTEM = 'You read what a person shares to build their movie and T
   'List every distinct movie or TV show that appears, in the order it appears. Give each title as The Movie Database lists it, fixing obvious misreadings. ' +
   'Give the release year if it is shown or you are sure of it, otherwise null. type is "tv" for series and miniseries, "movie" for films, "unknown" if you cannot tell. ' +
   'Leave out actors, channels, apps, and anything that is not a movie or show. If there are none, return an empty list.';
-async function importFromContent(content, label) {
+// An import runs on the server. Its job id is kept until the result is shown,
+// so if the phone closes the app midway, reopening it picks the import up.
+const PENDING_IMPORT = 'wl.pendingImport';
+let importWatching = '';        // the import job this page is already waiting on
+async function importFromContent(job, label) {
   openImportProgress(label);
   try {
-    const r = await askClaude({ system: EXTRACT_SYSTEM, content, schema: EXTRACT_SCHEMA, effort: 'low' });
-    const found = r.titles || [];
-    if (!found.length) { showImportReview([], 'Claude didn\'t find any movies or shows in that.'); return; }
-    setImportProgress(`Found ${found.length}. Looking them up…`);
-    const seen = new Set();
-    const rows = await pool(found, 5, async f => ({ asked: f, t: await resolveTitle(f).catch(() => null) }));
-    showImportReview(rows.filter(r => {
-      if (!r.t) return true;
-      if (seen.has(r.t.key)) return false;
-      seen.add(r.t.key);
-      return true;
-    }));
+    const r = await askClaude({
+      system: EXTRACT_SYSTEM, schema: EXTRACT_SCHEMA, effort: 'low', resolve: 'titles', ...job,
+      onStart: id => { importWatching = id; lsSet(PENDING_IMPORT, { id, label, at: Date.now() }); },
+      onProgress: importProgress
+    });
+    finishImport(r);
   } catch (e) {
+    endImport();
+    showImportReview([], e.message);
+  }
+}
+function importProgress(s) {
+  if (s.status === 'looking-up') setImportProgress(`Found ${s.total}. Looking them up: ${s.done} of ${s.total}…`);
+}
+function endImport() {
+  importWatching = '';
+  lsSet(PENDING_IMPORT, null);
+}
+function finishImport(r) {
+  endImport();
+  const found = r.titles || [];
+  if (!found.length) { showImportReview([], 'Claude didn\'t find any movies or shows in that.'); return; }
+  const seen = new Set();
+  showImportReview(found.map(f => ({ asked: f, t: matchToTitle(f) })).filter(r => {
+    if (!r.t) return true;
+    if (seen.has(r.t.key)) return false;
+    seen.add(r.t.key);
+    return true;
+  }));
+}
+async function resumeImport() {
+  const p = lsGet(PENDING_IMPORT, null);
+  if (!p || !p.id || !passcode || importWatching === p.id) return;
+  if (Date.now() - p.at > 23 * 3600000) { endImport(); return; }
+  importWatching = p.id;
+  openImportProgress(p.label || 'Finishing your import…');
+  try {
+    finishImport(await waitForJob(p.id, importProgress));
+  } catch (e) {
+    endImport();
     showImportReview([], e.message);
   }
 }
@@ -2226,7 +2330,7 @@ async function onPhotosChosen(files) {
     const content = imgs.map(data => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } }));
     content.push({ type: 'text', text: 'List the movies and TV shows in ' + (imgs.length === 1 ? 'this image.' : 'these images.') });
     if (files.length > 8) toast('Only the first 8 images were read');
-    importFromContent(content, 'Claude is reading ' + (imgs.length === 1 ? 'the image' : 'the images') + '…');
+    importFromContent({ content }, 'Claude is reading ' + (imgs.length === 1 ? 'the image' : 'the images') + '…');
   } catch (e) {
     showImportReview([], e.message);
   }
@@ -2239,7 +2343,7 @@ async function onListFileChosen(file) {
     toast(`That file is long; reading the first ${MAX_TEXT.toLocaleString()} characters`);
     text = text.slice(0, MAX_TEXT);
   }
-  importFromContent([{ type: 'text', text: `List the movies and TV shows in this file (${file.name}):\n\n${text}` }], 'Claude is reading ' + file.name + '…');
+  importFromContent({ intro: `List the movies and TV shows in this part of a file (${file.name}):`, text }, 'Claude is reading ' + file.name + '…');
 }
 function openPasteSheet() {
   openSheet(`
@@ -2255,7 +2359,7 @@ function openPasteSheet() {
 function submitPaste() {
   const text = ($('paste-text').value || '').trim().slice(0, MAX_TEXT);
   if (!text) return;
-  importFromContent([{ type: 'text', text: 'List the movies and TV shows in this text:\n\n' + text }], 'Claude is reading your list…');
+  importFromContent({ intro: 'List the movies and TV shows in this text:', text }, 'Claude is reading your list…');
 }
 function openImportProgress(label) {
   openSheet(`
@@ -2589,6 +2693,8 @@ function openSheet(html, opts = {}) {
   const sheet = $('sheet'), scrim = $('scrim');
   const wasOpen = sheetOpen;
   if (wasOpen && sheetOnClose) { const f = sheetOnClose; sheetOnClose = null; f(); }
+  // An earlier toast would sit over the sheet's heading.
+  $('toast').classList.remove('show');
   sheet.innerHTML = html;
   sheet.dataset.key = opts.key || '';
   sheetOnClose = opts.onClose || null;
@@ -2643,7 +2749,9 @@ function updateOnline() {
 }
 window.addEventListener('online', updateOnline);
 window.addEventListener('offline', updateOnline);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { syncNow(); resumeImport(); }
+});
 
 // ── Service Worker ─────────────────────────────────────────
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
@@ -2672,6 +2780,7 @@ loadTonightPrefs();
   switchTab(['discover', 'watchlist', 'tonight', 'settings'].includes(tab) ? tab : 'discover');
   fillDeck();
   syncNow().then(() => refreshStaleDetails());
+  resumeImport();
 })();
 </script>
 </body>

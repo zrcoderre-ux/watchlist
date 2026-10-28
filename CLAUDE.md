@@ -9,10 +9,17 @@ The app is a single-file PWA. There is no build step: edit and ship.
 - `sw.js` — service worker, network-first so a reload always gets fresh code.
   It never caches `/api/`.
 - `worker.js` — Cloudflare Worker: serves the static files, proxies TMDB
-  (`/api/tmdb/…`, read-only, allow-listed paths, edge-cached), proxies Claude
-  (`/api/claude`, the model and key fixed server-side), and holds the list in
-  the `WatchStore` Durable Object (`/api/sync`). Every `/api/` call is gated
-  by the `X-App-Key` passcode. See `SETUP.md`.
+  (`/api/tmdb/…`, read-only, allow-listed paths, edge-cached), runs Claude
+  jobs (`/api/jobs`, the model and key fixed server-side), and holds the list
+  in the `WatchStore` Durable Object (`/api/sync`). Every `/api/` call is
+  gated by the `X-App-Key` passcode. See `SETUP.md`.
+- Claude jobs: each runs in its own `ClaudeJob` Durable Object, driven by
+  alarms, so it finishes when a phone suspends the app; the app polls
+  `/api/jobs/<id>`. Long lists are read in pieces, and title lookups on TMDB
+  run in slices of at most 40 outside requests per alarm (the free plan
+  allows 50 per invocation). An import's job id is kept in
+  `wl.pendingImport` until its result is shown, so reopening the app resumes
+  it.
 - `manifest.json`, `icon-*.png`, `apple-touch-icon.png` — PWA install metadata.
 
 ## Data
@@ -39,7 +46,8 @@ The app is a single-file PWA. There is no build step: edit and ship.
 - Escape anything from TMDB, Claude, or the person with `esc()` before it
   reaches `innerHTML`.
 - Claude calls go through `askClaude()` with a JSON schema; prompts stay in
-  `index.html` next to the feature that uses them.
+  `index.html` next to the feature that uses them. Pass `resolve` to have the
+  server match the titles in Claude's answer on TMDB (`matchToTitle()`).
 - Styling follows Material 3: colour roles are defined on `:root` and
   redefined in the dark-scheme block — use the roles, never raw hex (text over
   a poster uses `--on-poster` in both schemes). Icons are Material Symbols:
