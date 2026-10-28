@@ -1,5 +1,24 @@
 # Watchlist: working notes for Claude
 
+## Workflow
+
+**Merge automatically once a change is done.** When a change is finished and
+verified, don't stop at "pushed, ready for review": open the pull request,
+squash-merge it to `main`, and say so. No approval round-trip is expected.
+
+1. Commit the work on a feature branch and push it.
+2. Open a PR describing the change.
+3. Squash-merge it.
+4. Report what was merged and what it does.
+
+A merge is a release: `main` deploys through Cloudflare's Git integration.
+There is no CI workflow to wait on.
+
+Ask first (don't auto-merge) when a change would delete or rewrite user data
+(the synced list, the stored format of `items`), touch the passcode gate or
+how secrets are handled, or when the task was ambiguous enough that the
+wrong reading would be expensive to undo.
+
 ## Layout
 
 The app is a single-file PWA. There is no build step: edit and ship.
