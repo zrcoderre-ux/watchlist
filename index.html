@@ -420,6 +420,7 @@ textarea.text-input:focus { padding: 11px 15px; }
 .card-title { font-size: 26px; line-height: 32px; font-weight: 500; }
 .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--on-poster-variant); font-size: 13px; }
 .card-meta .rating { display: inline-flex; align-items: center; gap: 2px; }
+.card-meta .critics { font-weight: 500; color: var(--on-poster); }
 .card-meta svg { width: 16px; height: 16px; }
 .card-overview {
   color: var(--on-poster-variant);
@@ -528,6 +529,7 @@ textarea.text-input:focus { padding: 11px 15px; }
 }
 .wl-row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .wl-row .t { font-size: 16px; line-height: 22px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-row .critics { font-size: 13px; font-weight: 500; color: var(--on-surface); }
 .wl-row .m, .wl-row .g { font-size: 13px; color: var(--on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-provs { display: flex; gap: 4px; margin-top: 4px; }
 .mini-provs img { width: 22px; height: 22px; border-radius: 6px; }
@@ -1081,7 +1083,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles TMDB's audience rates this high (out of 10, on enough
@@ -1441,7 +1443,8 @@ function parseProviders(wp) {
 }
 function detailsFresh(key) {
   const d = details[key];
-  return d && d.region === prefs.region && Date.now() - d.at < DETAILS_STALE_MS;
+  // Details from before the IMDb id was kept are stale: scores need it.
+  return d && d.region === prefs.region && d.imdb !== undefined && Date.now() - d.at < DETAILS_STALE_MS;
 }
 const detailsInflight = new Map();
 async function getDetails(key, force = false) {
@@ -1483,17 +1486,33 @@ async function getDetails(key, force = false) {
 // Critics' scores, from OMDb through the server. Asked for only when a title's
 // sheet opens (the free key allows 1,000 lookups a day) and kept with the
 // details: { at, rt, imdb, mc }, null where there's no score.
+const ratingsInflight = new Map();
 async function getRatings(key) {
   const d = details[key];
   if (ratingsOff || !d || !d.imdb) return null;
-  if (d.ratings && Date.now() - d.ratings.at < DETAILS_STALE_MS) return d.ratings;
+  if (ratingsFresh(key)) return d.ratings;
+  if (ratingsInflight.has(key)) return ratingsInflight.get(key);
   const imdb = d.imdb;
-  const r = await api('/api/ratings/' + imdb);
-  if (r.off) { ratingsOff = true; return null; }
-  const s = { at: Date.now(), rt: r.rt == null ? null : r.rt, imdb: r.imdb == null ? null : r.imdb, mc: r.mc == null ? null : r.mc };
-  const cur = details[key];
-  if (cur && cur.imdb === imdb) { cur.ratings = s; saveDetails(); }
-  return s;
+  const p = (async () => {
+    const r = await api('/api/ratings/' + imdb);
+    if (r.off) { ratingsOff = true; return null; }
+    const s = { at: Date.now(), rt: r.rt == null ? null : r.rt, imdb: r.imdb == null ? null : r.imdb, mc: r.mc == null ? null : r.mc };
+    const cur = details[key];
+    if (cur && cur.imdb === imdb) { cur.ratings = s; saveDetails(); }
+    return s;
+  })();
+  ratingsInflight.set(key, p);
+  try { return await p; } finally { ratingsInflight.delete(key); }
+}
+// Critics' scores as cards and rows show them, from what's cached: "RT 83% · MC 73".
+function criticsText(key) {
+  const s = details[key] && details[key].ratings;
+  if (!s) return '';
+  return [s.rt != null && 'RT ' + s.rt + '%', s.mc != null && 'MC ' + s.mc].filter(Boolean).join(' · ');
+}
+function ratingsFresh(key) {
+  const d = details[key];
+  return !!(d && d.ratings && Date.now() - d.ratings.at < DETAILS_STALE_MS);
 }
 function myProviders(key) {
   const d = details[key];
@@ -1508,12 +1527,18 @@ function onMyServices(key) {
 let refreshing = false;
 async function refreshStaleDetails(limit = 60) {
   if (refreshing || !passcode || !navigator.onLine) return;
-  const keys = Object.values(items).filter(i => i.status === 'want' && !detailsFresh(i.key)).map(i => i.key).slice(0, limit);
-  if (!keys.length) return;
+  const want = Object.values(items).filter(i => i.status === 'want');
+  const keys = want.filter(i => !detailsFresh(i.key)).map(i => i.key).slice(0, limit);
+  // Critics' scores for the rows too, a slice at a time (OMDb counts each one).
+  const scoreKeys = ratingsOff ? [] : want.filter(i => !ratingsFresh(i.key)).map(i => i.key).slice(0, limit);
+  if (!keys.length && !scoreKeys.length) return;
   refreshing = true;
   const rerender = debounce(() => { if (currentTab === 'watchlist') renderWatchlist(); }, 400);
   try {
     await pool(keys, 4, async k => { await getDetails(k); rerender(); });
+    await pool(scoreKeys, 4, async k => {
+      try { await getRatings(k); rerender(); } catch (e) {}
+    });
   } finally { refreshing = false; }
 }
 
@@ -1821,6 +1846,7 @@ function cardHtml(t, behind) {
       <div class="card-meta">
         <span>${esc(metaLine(t, false))}</span>
         ${t.vote ? `<span class="rating">${icon('star')}${t.vote.toFixed(1)}</span>` : ''}
+        ${criticsText(t.key) ? `<span class="critics">${esc(criticsText(t.key))}</span>` : ''}
         ${t.genres.length ? `<span>${esc(t.genres.slice(0, 3).join(', '))}</span>` : ''}
       </div>
       <div class="card-overview">${esc(t.overview)}</div>
@@ -1849,6 +1875,8 @@ function renderDeck() {
   attachDrag(top, deck[0]);
   ensureCardProviders(deck[0]);
   if (deck[1]) ensureCardProviders(deck[1]);
+  ensureCardScores(deck[0]);
+  if (deck[1]) ensureCardScores(deck[1]);
   if (deck.length < 6 && !deckError) fillDeck();
 }
 // Look up where the card's title streams, then redraw just its logos.
@@ -1861,6 +1889,20 @@ async function ensureCardProviders(t) {
   tmp.innerHTML = cardHtml(t, false);
   card.querySelector('.card-provs').innerHTML = tmp.querySelector('.card-provs').innerHTML;
   card.querySelector('.card-meta span').textContent = metaLine(t, false);
+}
+// Look up the card's critics' scores (the top two cards only: OMDb counts each
+// lookup), then redraw its meta line.
+async function ensureCardScores(t) {
+  if (ratingsOff || ratingsFresh(t.key)) return;
+  try {
+    await getDetails(t.key);
+    await getRatings(t.key);
+  } catch (e) { return; }
+  const card = document.querySelector(`.swipe-card[data-key="${CSS.escape(t.key)}"]`);
+  if (!card) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = cardHtml(t, false);
+  card.querySelector('.card-meta').innerHTML = tmp.querySelector('.card-meta').innerHTML;
 }
 
 function attachDrag(el, t) {
@@ -2170,7 +2212,7 @@ function renderWatchlist() {
           <div class="card-info">
             ${i.aiReason ? `<div class="ai-reason">${icon('wandStars')}<span>${esc(i.aiReason)}</span></div>` : ''}
             <div class="card-title">${esc(i.title)}</div>
-            <div class="card-meta"><span>${esc(metaLine(i, false))}</span>${i.vote ? `<span class="rating">${icon('star')}${Number(i.vote).toFixed(1)}</span>` : ''}${(i.genres || []).length ? `<span>${esc(i.genres.slice(0, 3).join(', '))}</span>` : ''}</div>
+            <div class="card-meta"><span>${esc(metaLine(i, false))}</span>${i.vote ? `<span class="rating">${icon('star')}${Number(i.vote).toFixed(1)}</span>` : ''}${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}${(i.genres || []).length ? `<span>${esc(i.genres.slice(0, 3).join(', '))}</span>` : ''}</div>
             <div class="card-overview">${esc(i.overview || '')}</div>
             <div class="card-provs">${(myProviders(i.key) || []).slice(0, 5).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" loading="lazy">`).join('')}</div>
           </div>
@@ -2201,6 +2243,7 @@ function renderWatchlist() {
       <span class="txt">
         <span class="t">${esc(i.title)}</span>
         <span class="m">${esc(metaLine(i))}${i.vote ? ' · ★ ' + Number(i.vote).toFixed(1) : ''}</span>
+        ${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}
         <span class="g">${esc((i.genres || []).join(', '))}</span>
         ${miniProvs(i.key)}
       </span>
@@ -2214,9 +2257,7 @@ function openDetail(key) {
   if (!t) return;
   renderDetail(key);
   if (!passcode) return;
-  // Details cached before the IMDb id was kept are fetched again for it.
-  const old = details[key] && details[key].imdb === undefined;
-  getDetails(key, old).then(() => {
+  getDetails(key).then(() => {
     fillDetail(key);
     // No scores is no row; it isn't worth an error.
     getRatings(key).then(() => fillDetail(key)).catch(() => {});
@@ -2711,7 +2752,7 @@ function pickCardHtml(i, why, rank) {
     ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="">` : '<span class="thumb"></span>'}
     <span class="txt">
       <span style="display:flex;gap:8px;align-items:center">${rank ? `<span class="pick-rank">${rank}</span>` : ''}<span class="t">${esc(i.title)}</span></span>
-      <span class="m">${esc(metaLine(i))}${mine.length ? ' · on ' + esc(mine.map(p => p.name).join(', ')) : ''}</span>
+      <span class="m">${esc(metaLine(i))}${criticsText(i.key) ? ' · ' + esc(criticsText(i.key)) : ''}${mine.length ? ' · on ' + esc(mine.map(p => p.name).join(', ')) : ''}</span>
       <span class="why">${esc(why)}</span>
     </span>
   </button>`;

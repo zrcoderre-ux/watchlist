@@ -54,7 +54,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   since `lastSync`; newer `updatedAt` wins on both sides. Records are never
   deleted, only re-statused, so a removal syncs like any other edit.
 - `details` is a per-device cache of TMDB details and where a title streams,
-  refreshed after 3 days. It is not synced.
+  refreshed after 3 days. It is not synced. It also holds each title's IMDb id
+  and OMDb scores (`ratings`), which cards and rows show as "RT 83% · MC 73"
+  (`criticsText`). Scores are looked up for the top two Discover cards, the
+  watchlist (in `refreshStaleDetails`), "For you" picks and opened titles —
+  never for a whole list at once, since each is an OMDb call.
 - Genre balance (`// ── Taste ───`): a small logistic model, refit when
   `itemsVersion` changes, learns from the last 500 keeps and passes how each
   genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
