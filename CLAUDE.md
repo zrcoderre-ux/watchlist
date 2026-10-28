@@ -94,7 +94,9 @@ The app is a single-file PWA. There is no build step: edit and ship.
 - "For you" is made ahead: `topUpAi()` keeps `AI_READY` (2) batches waiting
   in `aiQueue` (`wl.aiQueue`, kept `AI_READY_DAYS`) for the filters last used
   with "For you" (`wl.aiFilters`), one request at a time, each told what's
-  already waiting so it doesn't repeat it. Tapping "For you" takes the oldest
+  already waiting so it doesn't repeat it. Besides the taste profile, each
+  request lists every other seen or watchlisted title tersely, so no pick is
+  spent on one (older passes are left out on purpose). Tapping "For you" takes the oldest
   batch at once and tops up behind it. Requests in flight live in `aiRuns`
   (by filter set); one still running at a reload is collected from its job id
   (`wl.aiPending`). If the person had to wait and left, the chip shows a dot
