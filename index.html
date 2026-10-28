@@ -1083,12 +1083,13 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
-// match: Rotten Tomatoes' critics where it has a score, else TMDB's audience
-// (on enough votes to mean something). The floor follows what the person liked
+// match: Rotten Tomatoes' critics where it has a score, else the average of
+// TMDB's audience (on enough votes to mean something), IMDb and Metacritic,
+// whichever it has, out of 10 (see blendedScore). The floor follows what the person liked
 // and loved (see aiFloors); these are where it starts, and its bounds.
 const AI_MIN_SCORE = 8;
 const AI_MIN_VOTES = 50;
@@ -1847,7 +1848,7 @@ async function fetchDeckPage() {
 function floorNote() {
   const f = aiFloors();
   const from = f.rtFrom || f.scoreFrom;
-  return `Picks clear RT ${f.rt}% (or ★ ${f.score.toFixed(1)} without a critics' score)` +
+  return `Picks clear RT ${f.rt}% (or ${f.score.toFixed(1)} averaged across TMDB, IMDb and Metacritic without one)` +
     (from ? `, set from ${from} titles you liked.` : `. Rate ${AI_FLOOR_SAMPLE} titles you liked to tune it.`);
 }
 function cardHtml(t, behind) {
@@ -2064,6 +2065,15 @@ const SUGGEST_SCHEMA = {
 // The "For you" floor: just under the score three in four of the titles they
 // liked or loved reach (a loved one counting double), once enough of them have
 // one; the defaults until then.
+// TMDB's audience, IMDb and Metacritic (as tenths), averaged over whichever a
+// title has; null with none. `votes` null means TMDB's count isn't known.
+function blendedScore(vote, votes, s) {
+  const parts = [];
+  if (vote > 0 && (votes == null || votes >= AI_MIN_VOTES)) parts.push(vote);
+  if (s && s.imdb != null) parts.push(s.imdb);
+  if (s && s.mc != null) parts.push(s.mc / 10);
+  return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
+}
 function aiFloors() {
   const liked = Object.values(items).filter(i => i.status === 'watched' && i.myRating > 0);
   // The lower quartile, with each title repeated by its weight.
@@ -2074,7 +2084,8 @@ function aiFloors() {
   const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
   const weight = i => i.myRating === 2 ? AI_FLOOR_LOVED_WEIGHT : 1;
   const rts = liked.map(i => [details[i.key] && details[i.key].ratings && details[i.key].ratings.rt, weight(i)]).filter(([n]) => n != null);
-  const votes = liked.map(i => [i.vote, weight(i)]).filter(([v]) => v > 0);
+  // A kept title doesn't keep TMDB's vote count; its rating counts as is.
+  const votes = liked.map(i => [blendedScore(i.vote, null, details[i.key] && details[i.key].ratings), weight(i)]).filter(([v]) => v != null);
   return {
     rt: rts.length >= AI_FLOOR_SAMPLE ? clamp(Math.round(q1(rts)) - 3, AI_FLOOR_RT) : AI_MIN_RT,
     score: votes.length >= AI_FLOOR_SAMPLE ? clamp(Math.round((q1(votes) - 0.2) * 10) / 10, AI_FLOOR_SCORE) : AI_MIN_SCORE,
@@ -2123,7 +2134,7 @@ async function aiSuggestions(f) {
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
       'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
       'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
-      `Suggest only titles that clear this bar: ${floor.rt}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise an audience rating of ${floor.score} out of 10 or higher (on TMDB or IMDb). A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
+      `Suggest only titles that clear this bar: ${floor.rt}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise ${floor.score} out of 10 or higher averaged across whichever of TMDB's audience rating, IMDb's rating and Metacritic's score (as tenths) it has. A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
       'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
     content: [{
       type: 'text',
@@ -2135,14 +2146,16 @@ async function aiSuggestions(f) {
   });
   const picks = (r.suggestions || []).map(s => ({ s, t: matchToTitle(s) })).filter(x => x.t);
   // Rotten Tomatoes' critics decide where OMDb has them; it's looked up only
-  // for picks the bar applies to. Without it, TMDB's audience rating decides.
+  // for picks the bar applies to. Without it, the blended score decides.
   await pool(picks.filter(x => !x.s.strongMatch), 5, async x => {
-    try { await getDetails(x.t.key); x.rt = ((await getRatings(x.t.key)) || {}).rt; } catch (e) {}
+    try { await getDetails(x.t.key); x.scores = await getRatings(x.t.key); } catch (e) {}
   });
-  let out = picks.filter(x => x.s.strongMatch || (x.rt != null
-    ? x.rt >= floor.rt
-    // A rating on only a handful of votes doesn't clear the bar on its own.
-    : x.t.vote >= floor.score && x.t.votes >= AI_MIN_VOTES)).map(x => {
+  let out = picks.filter(x => {
+    if (x.s.strongMatch) return true;
+    if (x.scores && x.scores.rt != null) return x.scores.rt >= floor.rt;
+    const b = blendedScore(x.t.vote, x.t.votes, x.scores);
+    return b != null && b >= floor.score;
+  }).map(x => {
     x.t.aiReason = x.s.reason;
     return x.t;
   });
