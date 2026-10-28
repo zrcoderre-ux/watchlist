@@ -110,6 +110,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   (`deckMineSet`) and Tonight's switch (`wl.tonightMine`) are on whenever
   services are picked, until the person flips them; only a flipped choice is
   saved.
+- The watchlist can run to hundreds of rows: background updates call
+  `wlTouch(key)` to redraw that row or slide in place (`wlRowInner` /
+  `wlSlideInner`), never a full `renderWatchlist()`, unless "My services" or
+  the runtime sort makes membership or order depend on the update; then the
+  rebuild waits for scrolling to stop. Rows use `content-visibility: auto`.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 

@@ -516,6 +516,9 @@ textarea.text-input:focus { padding: 11px 15px; }
 .wl-row {
   display: flex; gap: 14px; align-items: center;
   padding: 8px;
+  /* A long list: rows off screen aren't laid out or painted until near. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px;
   border-radius: var(--r-lg);
   border: none; background-color: transparent;
   text-align: left; width: 100%;
@@ -1094,7 +1097,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.10.2';
+const APP_VERSION = '1.10.3';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -1587,11 +1590,10 @@ async function refreshStaleDetails(limit = 60) {
   const scoreKeys = ratingsOff ? [] : [...want, ...liked].filter(i => !ratingsFresh(i.key)).map(i => i.key).slice(0, limit);
   if (!keys.length && !scoreKeys.length) return;
   refreshing = true;
-  const rerender = debounce(() => { if (currentTab === 'watchlist') renderWatchlist(); }, 400);
   try {
-    await pool(keys, 4, async k => { await getDetails(k); rerender(); });
+    await pool(keys, 4, async k => { await getDetails(k); wlTouch(k); });
     await pool(scoreKeys, 4, async k => {
-      try { await getRatings(k, { background: true }); rerender(); } catch (e) {}
+      try { await getRatings(k, { background: true }); wlTouch(k); } catch (e) {}
     });
   } finally { refreshing = false; }
 }
@@ -2384,6 +2386,63 @@ function miniProvs(key) {
   if (!mine || !mine.length) return '';
   return `<div class="mini-provs">${mine.slice(0, 4).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy">`).join('')}</div>`;
 }
+// One row of the list view and one slide of the cards view, so a background
+// update can redraw just that title (see wlTouch).
+function wlRowInner(i) {
+  return `
+      ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="" loading="lazy" decoding="async">` : '<span class="thumb"></span>'}
+      <span class="txt">
+        <span class="t">${esc(i.title)}</span>
+        <span class="m">${esc(metaLine(i))}${i.vote ? ' · ★ ' + Number(i.vote).toFixed(1) : ''}</span>
+        ${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}
+        <span class="g">${esc((i.genres || []).join(', '))}</span>
+        ${miniProvs(i.key)}
+      </span>
+      ${ratingIcon(i.myRating)}
+`;
+}
+function wlSlideInner(i) {
+  return `
+          ${i.poster ? `<img class="poster" src="${imgUrl(i.poster, 'w500')}" alt="" loading="lazy">` : `<div class="no-poster">${esc(i.title)}</div>`}
+          <span class="type-badge">${icon(i.type === 'tv' ? 'tv' : 'movie')}${i.type === 'tv' ? 'TV' : 'Movie'}</span>
+          <div class="card-info">
+            ${i.aiReason ? `<div class="ai-reason">${icon('wandStars')}<span>${esc(i.aiReason)}</span></div>` : ''}
+            <div class="card-title">${esc(i.title)}</div>
+            <div class="card-meta"><span>${esc(metaLine(i, false))}</span>${i.vote ? `<span class="rating">${icon('star')}${Number(i.vote).toFixed(1)}</span>` : ''}${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}${(i.genres || []).length ? `<span>${esc(i.genres.slice(0, 3).join(', '))}</span>` : ''}</div>
+            <div class="card-overview">${esc(i.overview || '')}</div>
+            <div class="card-provs">${(myProviders(i.key) || []).slice(0, 5).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" loading="lazy">`).join('')}</div>
+          </div>
+`;
+}
+// Scores and streaming info arriving in the background change a row's text,
+// not which rows show or their order (unless "My services" or the runtime sort
+// is on), so they redraw those rows in place. A long list isn't rebuilt under a
+// scrolling thumb; when it must be, that waits until scrolling stops.
+const wlTouched = new Set();
+let wlScrolledAt = 0;
+const flushWlTouched = debounce(() => {
+  const keys = [...wlTouched];
+  wlTouched.clear();
+  if (currentTab !== 'watchlist') return;
+  if (wlFilters.mine || wlFilters.sort === 'runtime') { renderWatchlistWhenIdle(); return; }
+  for (const k of keys) {
+    const i = items[k];
+    if (!i) continue;
+    const row = document.querySelector(`#wl-body .wl-row[data-key="${CSS.escape(k)}"]`);
+    if (row) row.innerHTML = wlRowInner(i);
+    const slide = document.querySelector(`#wl-body .wl-slide[data-key="${CSS.escape(k)}"]`);
+    if (slide) slide.innerHTML = wlSlideInner(i);
+  }
+}, 400);
+function wlTouch(key) { wlTouched.add(key); flushWlTouched(); }
+let wlIdleTimer = null;
+function renderWatchlistWhenIdle() {
+  clearTimeout(wlIdleTimer);
+  const wait = wlScrolledAt + 800 - Date.now();
+  if (wait > 0) { wlIdleTimer = setTimeout(renderWatchlistWhenIdle, wait); return; }
+  wlIdleTimer = null;
+  if (currentTab === 'watchlist') renderWatchlist();
+}
 function renderWatchlist() {
   const f = wlFilters;
   $('wl-st-want').classList.toggle('on', f.status === 'want');
@@ -2412,17 +2471,7 @@ function renderWatchlist() {
     body.className = 'wl-body';
     body.innerHTML = note + `<div class="slide-count" id="slide-count">1 of ${list.length}</div>
       <div class="wl-carousel" id="wl-carousel">${list.map(i => `
-        <button class="wl-slide" onclick="openDetail('${esc(i.key)}')">
-          ${i.poster ? `<img class="poster" src="${imgUrl(i.poster, 'w500')}" alt="" loading="lazy">` : `<div class="no-poster">${esc(i.title)}</div>`}
-          <span class="type-badge">${icon(i.type === 'tv' ? 'tv' : 'movie')}${i.type === 'tv' ? 'TV' : 'Movie'}</span>
-          <div class="card-info">
-            ${i.aiReason ? `<div class="ai-reason">${icon('wandStars')}<span>${esc(i.aiReason)}</span></div>` : ''}
-            <div class="card-title">${esc(i.title)}</div>
-            <div class="card-meta"><span>${esc(metaLine(i, false))}</span>${i.vote ? `<span class="rating">${icon('star')}${Number(i.vote).toFixed(1)}</span>` : ''}${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}${(i.genres || []).length ? `<span>${esc(i.genres.slice(0, 3).join(', '))}</span>` : ''}</div>
-            <div class="card-overview">${esc(i.overview || '')}</div>
-            <div class="card-provs">${(myProviders(i.key) || []).slice(0, 5).map(p => `<img src="${imgUrl(p.logo, 'w92')}" alt="${esc(p.name)}" loading="lazy">`).join('')}</div>
-          </div>
-        </button>`).join('')}</div>`;
+        <button class="wl-slide" data-key="${esc(i.key)}" onclick="openDetail('${esc(i.key)}')">${wlSlideInner(i)}</button>`).join('')}</div>`;
     const car = $('wl-carousel');
     // A mouse wheel scrolls up and down; turn each notch into one card along.
     let wheelAt = 0;
@@ -2444,17 +2493,7 @@ function renderWatchlist() {
   }
   body.className = 'wl-body scroll';
   body.innerHTML = note + `<div class="wl-list">${list.map(i => `
-    <button class="wl-row" onclick="openDetail('${esc(i.key)}')">
-      ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="" loading="lazy">` : '<span class="thumb"></span>'}
-      <span class="txt">
-        <span class="t">${esc(i.title)}</span>
-        <span class="m">${esc(metaLine(i))}${i.vote ? ' · ★ ' + Number(i.vote).toFixed(1) : ''}</span>
-        ${criticsText(i.key) ? `<span class="critics">${esc(criticsText(i.key))}</span>` : ''}
-        <span class="g">${esc((i.genres || []).join(', '))}</span>
-        ${miniProvs(i.key)}
-      </span>
-      ${ratingIcon(i.myRating)}
-    </button>`).join('')}</div>`;
+    <button class="wl-row" data-key="${esc(i.key)}" onclick="openDetail('${esc(i.key)}')">${wlRowInner(i)}</button>`).join('')}</div>`;
 }
 
 // ── Title detail ───────────────────────────────────────────
@@ -3293,6 +3332,7 @@ loadTonightPrefs();
   $('photo-input').addEventListener('change', e => onPhotosChosen(e.target.files));
   $('file-input').addEventListener('change', e => onListFileChosen(e.target.files[0]));
   $('backup-input').addEventListener('change', e => e.target.files[0] && restoreBackup(e.target.files[0]));
+  $('wl-body').addEventListener('scroll', () => { wlScrolledAt = Date.now(); }, { passive: true, capture: true });
   document.body.classList.toggle('offline', !navigator.onLine);
   refreshCounts();
   renderDeckChips();
