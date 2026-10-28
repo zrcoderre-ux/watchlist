@@ -32,8 +32,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   jobs (`/api/jobs`, the model and key fixed server-side), and holds the list
   in the `WatchStore` Durable Object (`/api/sync`). With the optional
   `OMDB_KEY` it also returns a title's Rotten Tomatoes, IMDb and Metacritic
-  scores from OMDb (`/api/ratings/<imdb id>`, edge-cached a day); the app asks
-  only when a title's sheet opens, since the free key allows 1,000 a day.
+  scores from OMDb (`/api/ratings/<imdb id>`), kept for good in the
+  `ScoreStore` Durable Object and re-asked of OMDb only after 14 days for a
+  title from this year or last, 180 for older ones (the free key allows 1,000
+  lookups a day). If OMDb refuses, stored scores are served however old.
   Every `/api/` call is gated by the `X-App-Key` passcode. See `SETUP.md`.
 - Claude jobs: each runs in its own `ClaudeJob` Durable Object, driven by
   alarms, so it finishes when a phone suspends the app; the app polls
@@ -55,20 +57,23 @@ The app is a single-file PWA. There is no build step: edit and ship.
   deleted, only re-statused, so a removal syncs like any other edit.
 - `details` is a per-device cache of TMDB details and where a title streams,
   refreshed after 3 days. It is not synced. It also holds each title's IMDb id
-  and OMDb scores (`ratings`), which cards and rows show as "RT 83% · MC 73"
-  (`criticsText`). Scores are looked up for the top two Discover cards, the
-  watchlist (in `refreshStaleDetails`), "For you" picks and opened titles —
-  never for a whole list at once, since each is an OMDb call.
+  and OMDb scores (`ratings`, re-checked with the server monthly), which cards
+  and rows show as "RT 83% · MC 73" (`criticsText`). Scores are looked up for
+  the top two Discover cards, the watchlist and the titles rated liked or
+  loved (in `refreshStaleDetails`), "For you" picks and opened titles — never
+  for a whole list at once.
 - Genre balance (`// ── Taste ───`): a small logistic model, refit when
   `itemsVersion` changes, learns from the last 500 keeps and passes how each
   genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
   title. Discover thins TMDB's lists by it and "For you" tells Claude about
   it. No title's chance goes below `TASTE_FLOOR`; never let it reach zero.
-- "For you" keeps only titles that clear a bar, unless Claude marks the pick
-  `strongMatch`: Rotten Tomatoes critics at `AI_MIN_RT` (80%) or more where
-  OMDb has a score (looked up per pick, so up to 20 OMDb calls a tap),
-  otherwise TMDB's audience at `AI_MIN_SCORE` (8) or more on at least
-  `AI_MIN_VOTES` votes. Claude is told the bar; the app enforces it.
+- "For you" keeps only titles that clear a floor, unless Claude marks the pick
+  `strongMatch`: Rotten Tomatoes critics where OMDb has a score (looked up per
+  pick), otherwise TMDB's audience on at least `AI_MIN_VOTES` votes. The floor
+  moves (`aiFloors()`): once `AI_FLOOR_SAMPLE` liked or loved titles have a
+  score, it sits just under the lower quartile of theirs (RT −3, ★ −0.2),
+  within `AI_FLOOR_RT` / `AI_FLOOR_SCORE`; until then 80% / 8.0. Claude is
+  told the floor; the app enforces it.
 - A "For you" request lives in `aiRun`, keyed by the filters it was asked
   with, not in the deck: switching lists leaves it running, and its picks wait
   (dot on the chip, a toast) until "For you" is chosen again with the same
