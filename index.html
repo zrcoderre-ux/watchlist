@@ -1083,7 +1083,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
@@ -1094,6 +1094,7 @@ const AI_MIN_SCORE = 8;
 const AI_MIN_VOTES = 50;
 const AI_MIN_RT = 80;
 const AI_FLOOR_SAMPLE = 8;       // liked titles with a score before the floor moves
+const AI_FLOOR_LOVED_WEIGHT = 2; // a loved title counts as this many liked ones
 const AI_FLOOR_RT = [60, 90];
 const AI_FLOOR_SCORE = [6.5, 8.5];
 // Scores rarely change, and the server keeps them; a device checks back monthly.
@@ -2058,13 +2059,19 @@ const SUGGEST_SCHEMA = {
   additionalProperties: false
 };
 // The "For you" floor: just under the score three in four of the titles they
-// liked or loved reach, once enough of them have one; the defaults until then.
+// liked or loved reach (a loved one counting double), once enough of them have
+// one; the defaults until then.
 function aiFloors() {
   const liked = Object.values(items).filter(i => i.status === 'watched' && i.myRating > 0);
-  const q1 = list => { const a = list.slice().sort((x, y) => x - y); return a[Math.floor((a.length - 1) / 4)]; };
+  // The lower quartile, with each title repeated by its weight.
+  const q1 = list => {
+    const a = list.flatMap(([v, w]) => Array(w).fill(v)).sort((x, y) => x - y);
+    return a[Math.floor((a.length - 1) / 4)];
+  };
   const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
-  const rts = liked.map(i => details[i.key] && details[i.key].ratings && details[i.key].ratings.rt).filter(n => n != null);
-  const votes = liked.map(i => i.vote).filter(v => v > 0);
+  const weight = i => i.myRating === 2 ? AI_FLOOR_LOVED_WEIGHT : 1;
+  const rts = liked.map(i => [details[i.key] && details[i.key].ratings && details[i.key].ratings.rt, weight(i)]).filter(([n]) => n != null);
+  const votes = liked.map(i => [i.vote, weight(i)]).filter(([v]) => v > 0);
   return {
     rt: rts.length >= AI_FLOOR_SAMPLE ? clamp(Math.round(q1(rts)) - 3, AI_FLOOR_RT) : AI_MIN_RT,
     score: votes.length >= AI_FLOOR_SAMPLE ? clamp(Math.round((q1(votes) - 0.2) * 10) / 10, AI_FLOOR_SCORE) : AI_MIN_SCORE,
