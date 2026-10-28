@@ -38,6 +38,9 @@ const OMDB_CACHE_SECONDS = 24 * 3600;      // the free key allows 1,000 lookups 
 const SCORE_RECHECK_RECENT_MS = 14 * 24 * 3600 * 1000;
 const SCORE_RECHECK_OLD_MS = 180 * 24 * 3600 * 1000;
 const IMDB_ID = /^tt\d{5,10}$/;
+// Of OMDb's 1,000 a day, background filling (?bg=1) may use this many; the
+// rest is kept for cards being looked at, For you picks and opened titles.
+const OMDB_BACKGROUND_SHARE = 700;
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL_DEFAULT = 'claude-opus-5-5';
@@ -157,6 +160,7 @@ async function ratings(url, env, ctx) {
   if (!env.OMDB_KEY) return json({ off: true });
   const id = url.pathname.slice('/api/ratings/'.length);
   if (!IMDB_ID.test(id)) return json({ error: 'Not found.' }, 404);
+  const background = url.searchParams.get('bg') === '1';
 
   // The cache key leaves the key out, as with TMDB.
   const cacheKey = new Request(OMDB_BASE + '?i=' + id);
@@ -165,17 +169,38 @@ async function ratings(url, env, ctx) {
   if (hit) return hit;
 
   const store = env.SCORES.get(env.SCORES.idFromName('scores'));
-  const stored = await (await store.fetch('https://scores/get?id=' + id)).json();
+  const { scores: stored, limitedDay } = await (await store.fetch('https://scores/get?id=' + id)).json();
   let scores = stored && scoresFresh(stored) ? stored : null;
   if (!scores) {
-    try {
-      ctx.waitUntil(recordUsage(env, { omdb: 1 }));
-      scores = await omdbScores(id, env);
-      await store.fetch('https://scores/put', { method: 'POST', body: JSON.stringify({ id, scores }) });
-    } catch (e) {
-      // A bad key or the day's limit: what was stored, however old, beats nothing.
-      if (!stored) return json({ error: e.message }, 502);
-      scores = stored;
+    // Once OMDb says the day's limit is reached, nothing more is asked of it
+    // that day; background filling also stops at its share.
+    const today = utcDay();
+    let refuse = limitedDay === today ? 'all' : null;
+    if (!refuse && background) {
+      const used = await (await usageStub(env).fetch('https://usage/today')).json();
+      if ((used.omdb || 0) >= OMDB_BACKGROUND_SHARE) refuse = 'background';
+    }
+    if (!refuse) {
+      try {
+        scores = await omdbScores(id, env);
+        ctx.waitUntil(recordUsage(env, { omdb: 1 }));
+        await store.fetch('https://scores/put', { method: 'POST', body: JSON.stringify({ id, scores }) });
+      } catch (e) {
+        if (e.limit) {
+          await store.fetch('https://scores/limited', { method: 'POST', body: JSON.stringify({ day: today }) });
+          ctx.waitUntil(recordUsage(env, { omdbRefused: 1 }));
+          refuse = 'all';
+        } else {
+          ctx.waitUntil(recordUsage(env, { omdb: 1 }));
+          if (!stored) return json({ error: e.message }, 502);
+        }
+      }
+    }
+    // What was stored, however old, beats nothing.
+    if (!scores) scores = stored;
+    if (!scores) {
+      const retryAfter = Math.ceil((Date.parse(today + 'T00:00:00Z') + 864e5 - Date.now()) / 1000);
+      return json({ error: "OMDb's daily limit is used up.", paused: refuse, retryAfter }, 429);
     }
   }
   const out = json({ rt: scores.rt, imdb: scores.imdb, mc: scores.mc }, 200, {
@@ -184,6 +209,8 @@ async function ratings(url, env, ctx) {
   ctx.waitUntil(cache.put(cacheKey, out.clone()));
   return out;
 }
+
+function utcDay() { return new Date().toISOString().slice(0, 10); }
 
 function scoresFresh(s) {
   const recent = !s.year || s.year >= new Date().getUTCFullYear() - 1;
@@ -198,7 +225,9 @@ async function omdbScores(id, env) {
   const data = await res.json().catch(() => ({}));
   // An unknown title is an answer; a bad key or the day's limit is not.
   if (data.Response !== 'True' && !/not found|incorrect imdb/i.test(data.Error || '')) {
-    throw new Error('OMDb: ' + (data.Error || 'returned ' + res.status));
+    const err = new Error('OMDb: ' + (data.Error || 'returned ' + res.status));
+    err.limit = /limit/i.test(data.Error || '');
+    throw err;
   }
   const num = (v, max) => {
     const n = parseFloat(String(v || '').replace(/[^0-9.]/g, ''));
@@ -368,9 +397,10 @@ export class UsageStore {
     const storage = this.ctx.storage;
     if (path === '/add' && request.method === 'POST') {
       const d = await request.json();
-      const key = 'day:' + new Date().toISOString().slice(0, 10);
+      const key = 'day:' + utcDay();
       const day = (await storage.get(key)) || { claude: {}, omdb: 0, tmdb: 0 };
       day.omdb += Number(d.omdb) || 0;
+      day.omdbRefused = (day.omdbRefused || 0) + (Number(d.omdbRefused) || 0);
       day.tmdb += Number(d.tmdb) || 0;
       for (const c of Array.isArray(d.claude) ? d.claude : []) {
         const name = USAGE_FEATURE.test(c.feature || '') ? c.feature : 'other';
@@ -380,6 +410,7 @@ export class UsageStore {
       await storage.put(key, day);
       return json({ ok: true });
     }
+    if (path === '/today') return json((await storage.get('day:' + utcDay())) || { omdb: 0 });
     if (path === '/list') {
       const since = 'day:' + new Date(Date.now() - USAGE_KEEP_DAYS * 864e5).toISOString().slice(0, 10);
       const days = {};
@@ -404,7 +435,14 @@ export class ScoreStore {
     const url = new URL(request.url);
     if (url.pathname === '/get') {
       const id = url.searchParams.get('id') || '';
-      return json(IMDB_ID.test(id) ? (await this.ctx.storage.get('score:' + id)) || null : null);
+      return json({
+        scores: IMDB_ID.test(id) ? (await this.ctx.storage.get('score:' + id)) || null : null,
+        limitedDay: (await this.ctx.storage.get('limitedDay')) || ''
+      });
+    }
+    if (url.pathname === '/limited' && request.method === 'POST') {
+      await this.ctx.storage.put('limitedDay', (await request.json()).day);
+      return json({ ok: true });
     }
     if (url.pathname === '/put' && request.method === 'POST') {
       const { id, scores } = await request.json();

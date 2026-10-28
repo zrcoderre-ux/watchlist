@@ -1,4 +1,4 @@
-const CACHE_NAME = 'watchlist-v6';
+const CACHE_NAME = 'watchlist-v7';
 const ASSETS = [
   '/',
   '/index.html',
