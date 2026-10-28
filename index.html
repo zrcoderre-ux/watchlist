@@ -1094,7 +1094,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -1668,6 +1668,10 @@ const TASTE_WINDOW = 500;       // most recent decisions considered
 // nudged by taste (this many review points per unit of a title's genre pull).
 const DECK_TASTE_PULL = 0.5;
 const DECK_REVIEW_PRIOR = 6.5;  // what TMDB's rating is pulled toward on few votes
+// No list recommends a panned title: Rotten on Rotten Tomatoes where it has a
+// score, else a blended score under this. Titles too new to judge still show.
+const PANNED_RT = 60;
+const PANNED_SCORE = 6.0;
 // Genres, plus Anime: TMDB has no such genre, so it's Japanese animation.
 function tasteTags(t) {
   const g = t.genres || [];
@@ -1797,9 +1801,17 @@ function resetDeck() {
   renderDeck();
   fillDeck();
 }
+// Rotten, or rated low by enough people to mean it (see PANNED_RT).
+function panned(t) {
+  const s = details[t.key] && details[t.key].ratings;
+  if (s && s.rt != null) return s.rt < PANNED_RT;
+  const b = blendedScore(t.vote, t.votes, s);
+  return b != null && b < PANNED_SCORE;
+}
 // Whether a deck candidate should be shown at all.
 function deckWants(t) {
   if (!t || !t.poster || deckKeys.has(t.key)) return false;
+  if (panned(t)) return false;
   const st = statusOf(t.key);
   if (st !== 'none') return false;
   if (deckFilters.type !== 'all' && t.type !== deckFilters.type) return false;
@@ -1944,8 +1956,8 @@ function renderDeck() {
   attachDrag(top, deck[0]);
   ensureCardProviders(deck[0]);
   if (deck[1]) ensureCardProviders(deck[1]);
-  ensureCardScores(deck[0]);
-  if (deck[1]) ensureCardScores(deck[1]);
+  // A few cards ahead, so a panned one goes before it reaches the top.
+  deck.slice(0, 4).forEach(ensureCardScores);
   if (deck.length < 6 && !deckError) fillDeck();
 }
 // Look up where the card's title streams, then redraw just its logos.
@@ -1959,14 +1971,21 @@ async function ensureCardProviders(t) {
   card.querySelector('.card-provs').innerHTML = tmp.querySelector('.card-provs').innerHTML;
   card.querySelector('.card-meta span').textContent = metaLine(t, false);
 }
-// Look up the card's critics' scores (the top two cards only: OMDb counts each
-// lookup), then redraw its meta line.
+// Look up a card's critics' scores (the next few cards only: OMDb counts each
+// lookup), then drop it if they pan it, or redraw its meta line.
 async function ensureCardScores(t) {
   if (ratingsOff || ratingsFresh(t.key)) return;
   try {
     await getDetails(t.key);
     await getRatings(t.key);
   } catch (e) { return; }
+  const at = deck.indexOf(t);
+  if (at >= 0 && panned(t)) {
+    deck.splice(at, 1);
+    if (at < 2) renderDeck();
+    if (at === 0) toast(`Skipped ${t.title}: ${criticsText(t.key) || 'low reviews'}`);
+    return;
+  }
   const card = document.querySelector(`.swipe-card[data-key="${CSS.escape(t.key)}"]`);
   if (!card) return;
   const tmp = document.createElement('div');
