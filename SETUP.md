@@ -68,6 +68,11 @@ scores just don't appear.
 
 ## Claude model and cost
 
+**Settings → Usage** shows this app's estimated Claude spend for the month
+(by feature), and today's OMDb and TMDB calls. The estimate uses Anthropic's
+list prices; the Anthropic Console has the actual bill, including any other
+app on the same account.
+
 Claude is called for three things: reading photos and lists (low effort),
 "For you" suggestions, and Tonight's picks (medium effort). Each call goes to
 `claude-opus-5-5` unless you set a different model:

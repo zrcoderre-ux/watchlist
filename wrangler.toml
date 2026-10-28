@@ -43,6 +43,15 @@ class_name = "ScoreStore"
 tag = "v3"
 new_sqlite_classes = ["ScoreStore"]
 
+# What the app has used of Claude, OMDb and TMDB, by day, for Settings → Usage.
+[[durable_objects.bindings]]
+name = "USAGE"
+class_name = "UsageStore"
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["UsageStore"]
+
 # Secrets, set once and never here:
 #   npx wrangler secret put APP_PASSCODE
 #   npx wrangler secret put TMDB_TOKEN
