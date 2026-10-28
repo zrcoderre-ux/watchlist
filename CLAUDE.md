@@ -71,7 +71,8 @@ The app is a single-file PWA. There is no build step: edit and ship.
   `strongMatch`: Rotten Tomatoes critics where OMDb has a score (looked up per
   pick), otherwise TMDB's audience on at least `AI_MIN_VOTES` votes. The floor
   moves (`aiFloors()`): once `AI_FLOOR_SAMPLE` liked or loved titles have a
-  score, it sits just under the lower quartile of theirs (RT −3, ★ −0.2),
+  score, it sits just under the lower quartile of theirs (a loved title
+  counting `AI_FLOOR_LOVED_WEIGHT` times; RT −3, ★ −0.2),
   within `AI_FLOOR_RT` / `AI_FLOOR_SCORE`; until then 80% / 8.0. Claude is
   told the floor; the app enforces it.
 - A "For you" request lives in `aiRun`, keyed by the filters it was asked
