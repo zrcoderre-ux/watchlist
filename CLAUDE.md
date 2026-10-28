@@ -67,6 +67,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
   title. Discover thins TMDB's lists by it and "For you" tells Claude about
   it. No title's chance goes below `TASTE_FLOOR`; never let it reach zero.
+  Each page Trending, Top rated and New fetch is then ordered by `deckRank()`:
+  reviews out of 10 (RT, else the blend, TMDB's rating shrunk toward
+  `DECK_REVIEW_PRIOR` on few votes) plus `DECK_TASTE_PULL` × the genre pull.
+  Pages stay in TMDB's order; only the order within one changes.
 - "For you" keeps only titles that clear a floor, unless Claude marks the pick
   `strongMatch`: Rotten Tomatoes critics where OMDb has a score (looked up per
   pick), otherwise `blendedScore()`: the average of TMDB's audience (on at

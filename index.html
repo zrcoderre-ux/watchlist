@@ -1083,7 +1083,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.8.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
@@ -1646,6 +1646,10 @@ function renderCurrent() {
 const TASTE_FLOOR = 0.15;
 const TASTE_PRIOR = 4;          // pull toward neutral, in decisions' worth
 const TASTE_WINDOW = 500;       // most recent decisions considered
+// Each page of Trending, Top rated and New is reordered: best reviewed first,
+// nudged by taste (this many review points per unit of a title's genre pull).
+const DECK_TASTE_PULL = 0.5;
+const DECK_REVIEW_PRIOR = 6.5;  // what TMDB's rating is pulled toward on few votes
 // Genres, plus Anime: TMDB has no such genre, so it's Japanese animation.
 function tasteTags(t) {
   const g = t.genres || [];
@@ -1698,11 +1702,30 @@ function tasteChance(m, effect) {
   return Math.max(TASTE_FLOOR, Math.min(1, Math.pow(sig(m.b + effect) / sig(m.b), 1.5)));
 }
 // The chance a title is shown. A genre picked as a filter doesn't count.
+// How much a title's genres move the odds of keeping it (log-odds; 0 with no
+// model). A genre picked in the filter doesn't count against itself.
+function tasteEffect(t) {
+  const m = tasteModel();
+  if (!m) return 0;
+  return tasteTags(t).filter(g => g !== deckFilters.genre).reduce((s, g) => s + (m.w[g] || 0), 0);
+}
 function tasteWeight(t) {
   const m = tasteModel();
-  if (!m) return 1;
-  const effect = tasteTags(t).filter(g => g !== deckFilters.genre).reduce((s, g) => s + (m.w[g] || 0), 0);
-  return tasteChance(m, effect);
+  return m ? tasteChance(m, tasteEffect(t)) : 1;
+}
+// Where a title goes in its page of the deck: its reviews out of 10 (Rotten
+// Tomatoes where known, else the For you blend, with TMDB's rating pulled toward
+// middling until enough votes back it), plus a nudge for the genres they keep.
+function deckRank(t) {
+  const s = details[t.key] && details[t.key].ratings;
+  let review;
+  if (s && s.rt != null) review = s.rt / 10;
+  else {
+    const tmdb = t.vote > 0 && t.votes ? (t.vote * t.votes + DECK_REVIEW_PRIOR * AI_MIN_VOTES) / (t.votes + AI_MIN_VOTES) : null;
+    review = blendedScore(tmdb, null, s);
+    if (review == null) review = DECK_REVIEW_PRIOR;
+  }
+  return review + DECK_TASTE_PULL * Math.max(-2, Math.min(2, tasteEffect(t)));
 }
 function tasteWeights() {
   const m = tasteModel();
@@ -1813,12 +1836,19 @@ async function fillDeck() {
       // Switched away: the deck moved on, and Claude's picks wait in aiRun.
       if (gen !== deckGen) return;
       if (run && aiRun === run) aiRun = null;
+      const fresh = [];
       for (const t of batch) {
-        if (!deckWants(t)) continue;
-        // Claude's picks already allow for taste; TMDB's lists get thinned.
+        if (!deckWants(t) || fresh.some(x => x.key === t.key)) continue;
+        // Claude's picks already allow for taste; TMDB's lists get thinned,
+        // then each page is put in order.
         if (deckFilters.mode !== 'ai' && Math.random() >= tasteWeight(t)) continue;
-        deck.push(t); deckKeys.add(t.key); added++;
+        fresh.push(t);
       }
+      if (deckFilters.mode !== 'ai') {
+        const rank = new Map(fresh.map(t => [t.key, deckRank(t)]));
+        fresh.sort((a, b) => rank.get(b.key) - rank.get(a.key));
+      }
+      for (const t of fresh) { deck.push(t); deckKeys.add(t.key); added++; }
       if (deckFilters.mode === 'ai') deckDone = true;   // one Claude call per tap of "For you"
     }
   } catch (e) {
