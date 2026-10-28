@@ -278,6 +278,10 @@ body.offline .offline-pill { display: inline-flex; }
 .chip svg { width: 18px; height: 18px; margin-left: -4px; }
 .chip.on { background-color: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; }
 .chip.ai.on { background-color: var(--tertiary-container); color: var(--on-tertiary-container); }
+/* "For you" picks still coming (pulsing) or waiting (steady) while another list shows */
+.chip.ai.busy::after, .chip.ai.ready::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--on-tertiary-container); margin-right: -4px; }
+.chip.ai.busy::after { animation: chip-pulse 1.2s ease-in-out infinite; }
+@keyframes chip-pulse { 50% { opacity: 0.25; } }
 select.chip {
   appearance: none; -webkit-appearance: none;
   padding-right: 30px;
@@ -1077,7 +1081,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.4.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles TMDB's audience rates this high (out of 10, on enough
@@ -1132,6 +1136,9 @@ let deckLoading = false;
 let deckDone = false;
 let deckError = '';
 let deckGen = 0;                // bumps when filters change, so stale fetches are dropped
+// The latest "For you" request: { sig, promise, titles }. It keeps running when
+// another list is chosen, and its picks wait here until "For you" shows them.
+let aiRun = null;
 let undoStack = [];
 
 let wlView = 'list';
@@ -1671,6 +1678,10 @@ function tasteLeanings() {
 // ── Discover: the deck ─────────────────────────────────────
 function renderDeckChips() {
   document.querySelectorAll('#deck-chips [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === deckFilters.mode));
+  const ai = document.querySelector('#deck-chips [data-mode="ai"]');
+  const waiting = deckFilters.mode !== 'ai' && aiRun && aiRun.sig === aiSig();
+  ai.classList.toggle('busy', !!waiting && !aiRun.titles);
+  ai.classList.toggle('ready', !!waiting && !!aiRun.titles);
   $('deck-type').value = deckFilters.type;
   $('deck-type').classList.toggle('on', deckFilters.type !== 'all');
   $('deck-genre').value = deckFilters.genre;
@@ -1750,8 +1761,16 @@ async function fillDeck() {
     let added = 0, tries = 0;
     while (deck.length < 10 && !deckDone && tries < 4 && gen === deckGen) {
       tries++;
-      const batch = deckFilters.mode === 'ai' ? await aiSuggestions() : await fetchDeckPage();
+      let batch, run;
+      if (deckFilters.mode === 'ai') {
+        run = aiRun && aiRun.sig === aiSig() ? aiRun : startAiRun();
+        batch = await run.promise;
+      } else {
+        batch = await fetchDeckPage();
+      }
+      // Switched away: the deck moved on, and Claude's picks wait in aiRun.
       if (gen !== deckGen) return;
+      if (run && aiRun === run) aiRun = null;
       for (const t of batch) {
         if (!deckWants(t)) continue;
         // Claude's picks already allow for taste; TMDB's lists get thinned.
@@ -1979,14 +1998,36 @@ const SUGGEST_SCHEMA = {
   required: ['suggestions'],
   additionalProperties: false
 };
-async function aiSuggestions() {
+// The filters a "For you" request was asked with; its picks fit only these.
+function aiSig() { return [deckFilters.type, deckFilters.genre, deckFilters.mine].join('|'); }
+function startAiRun() {
+  const run = { sig: aiSig(), titles: null };
+  run.promise = aiSuggestions({ ...deckFilters }).then(titles => {
+    run.titles = titles;
+    if (aiRun === run && deckFilters.mode !== 'ai') {
+      renderDeckChips();
+      if (run.sig === aiSig()) toast('Your picks from Claude are ready', 'Show', () => { switchTab('discover'); setDeckMode('ai'); });
+    }
+    return titles;
+  }, e => {
+    if (aiRun === run) { aiRun = null; renderDeckChips(); }
+    throw e;
+  });
+  // Shown elsewhere when "For you" is on screen; this keeps a background
+  // failure from surfacing as an unhandled rejection.
+  run.promise.catch(() => {});
+  aiRun = run;
+  renderDeckChips();
+  return run;
+}
+async function aiSuggestions(f) {
   const taste = tasteProfile();
   const asks = [];
-  if (deckFilters.type !== 'all') asks.push(deckFilters.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
-  if (deckFilters.genre) asks.push(`Only ${deckFilters.genre} titles.`);
-  if (deckFilters.mine && prefs.services.length) asks.push(`Prefer titles streaming in ${prefs.region} on: ${serviceNames().join(', ')}.`);
-  const lean = tasteLeanings().filter(([g]) => g !== deckFilters.genre).slice(0, 6);
-  if (lean.length && !deckFilters.genre) {
+  if (f.type !== 'all') asks.push(f.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
+  if (f.genre) asks.push(`Only ${f.genre} titles.`);
+  if (f.mine && prefs.services.length) asks.push(`Prefer titles streaming in ${prefs.region} on: ${serviceNames().join(', ')}.`);
+  const lean = tasteLeanings().filter(([g]) => g !== f.genre).slice(0, 6);
+  if (lean.length && !f.genre) {
     asks.push('From their swipes they lean away from some genres. Include fewer of these, but never none: ' +
       lean.map(([g, w]) => `${g} (${w < 0.35 ? '1' : '2 or 3'} of 20)`).join(', ') + '.');
   }
@@ -2015,7 +2056,7 @@ async function aiSuggestions() {
     t.aiReason = s.reason;
     return t;
   }).filter(Boolean);
-  if (deckFilters.mine && prefs.services.length) {
+  if (f.mine && prefs.services.length) {
     await pool(out, 5, t => getDetails(t.key));
     out = out.filter(t => onMyServices(t.key) !== false);
   }

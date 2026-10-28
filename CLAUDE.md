@@ -64,6 +64,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   more on at least `AI_MIN_VOTES` votes, unless Claude marks the pick
   `strongMatch`. Claude is told the bar; the app enforces it on the matched
   TMDB rating.
+- A "For you" request lives in `aiRun`, keyed by the filters it was asked
+  with, not in the deck: switching lists leaves it running, and its picks wait
+  (dot on the chip, a toast) until "For you" is chosen again with the same
+  filters. It isn't kept across a reload.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 
