@@ -60,6 +60,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
   title. Discover thins TMDB's lists by it and "For you" tells Claude about
   it. No title's chance goes below `TASTE_FLOOR`; never let it reach zero.
+- "For you" keeps only titles TMDB's audience rates `AI_MIN_SCORE` (8) or
+  more on at least `AI_MIN_VOTES` votes, unless Claude marks the pick
+  `strongMatch`. Claude is told the bar; the app enforces it on the matched
+  TMDB rating.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 

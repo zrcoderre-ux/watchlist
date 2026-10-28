@@ -1077,9 +1077,13 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
+// "For you" keeps titles TMDB's audience rates this high (out of 10, on enough
+// votes to mean something); below it only what Claude calls a very strong match.
+const AI_MIN_SCORE = 8;
+const AI_MIN_VOTES = 50;
 const REGIONS = [
   ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
   ['AU', 'Australia'], ['NZ', 'New Zealand'], ['DE', 'Germany'], ['FR', 'France'],
@@ -1964,9 +1968,10 @@ const SUGGEST_SCHEMA = {
           title: { type: 'string' },
           year: { type: 'integer' },
           type: { type: 'string', enum: ['movie', 'tv'] },
-          reason: { type: 'string' }
+          reason: { type: 'string' },
+          strongMatch: { type: 'boolean' }
         },
-        required: ['title', 'year', 'type', 'reason'],
+        required: ['title', 'year', 'type', 'reason', 'strongMatch'],
         additionalProperties: false
       }
     }
@@ -1992,6 +1997,7 @@ async function aiSuggestions() {
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
       'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
       'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
+      `Suggest only titles audiences rate ${AI_MIN_SCORE} out of 10 or higher (on TMDB or IMDb). A title rated lower is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops lower-rated titles that are not marked strongMatch. ` +
       'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
     content: [{
       type: 'text',
@@ -2003,7 +2009,10 @@ async function aiSuggestions() {
   });
   let out = (r.suggestions || []).map(s => {
     const t = matchToTitle(s);
-    if (t) t.aiReason = s.reason;
+    if (!t) return null;
+    // A rating on only a handful of votes doesn't clear the bar on its own.
+    if (!s.strongMatch && !(t.vote >= AI_MIN_SCORE && t.votes >= AI_MIN_VOTES)) return null;
+    t.aiReason = s.reason;
     return t;
   }).filter(Boolean);
   if (deckFilters.mine && prefs.services.length) {
