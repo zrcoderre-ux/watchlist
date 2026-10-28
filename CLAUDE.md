@@ -77,6 +77,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   reviews out of 10 (RT, else the blend, TMDB's rating shrunk toward
   `DECK_REVIEW_PRIOR` on few votes) plus `DECK_TASTE_PULL` × the genre pull.
   Pages stay in TMDB's order; only the order within one changes.
+  Every list, For you included, hides panned titles (`panned()`): Rotten
+  (under `PANNED_RT`) where RT has a score, else a blend under
+  `PANNED_SCORE`. The next four cards' scores are looked up so a Rotten one
+  goes before it reaches the top.
 - "For you" keeps only titles that clear a floor, unless Claude marks the pick
   `strongMatch`: Rotten Tomatoes critics where OMDb has a score (looked up per
   pick), otherwise `blendedScore()`: the average of TMDB's audience (on at
