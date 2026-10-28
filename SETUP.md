@@ -1,12 +1,13 @@
 # Setting up Watchlist
 
 Watchlist runs as one Cloudflare Worker, the same way Inbox Cleaner does. The
-Worker serves the app and holds three secrets so they never reach a browser:
+Worker serves the app and holds its secrets so they never reach a browser:
 
 | Secret | What it is |
 | --- | --- |
 | `TMDB_TOKEN` | Your TMDB **API Read Access Token** (the long one, not the short "API Key"). |
 | `ANTHROPIC_API_KEY` | Your Claude API key. |
+| `OMDB_KEY` | Optional. Your OMDb API key, for Rotten Tomatoes, IMDb and Metacritic scores on each title. |
 | `APP_PASSCODE` | Any passphrase you choose. Each device asks for it once; the Worker refuses every `/api/` call without it, so nobody who finds the URL can spend your Claude key. |
 
 ## 1. Get a TMDB token (free)
@@ -38,6 +39,7 @@ sync across devices; there's nothing to set up for it.
 npx wrangler secret put TMDB_TOKEN
 npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put APP_PASSCODE
+npx wrangler secret put OMDB_KEY        # optional
 ```
 
 (Or in the dashboard: the Worker → **Settings → Variables and Secrets**, type
@@ -48,6 +50,19 @@ npx wrangler secret put APP_PASSCODE
 Open the Worker's URL on your phone, enter the passcode, pick your streaming
 services, and add it to your home screen (Share → Add to Home Screen on
 iPhone; the install prompt on Android or desktop Chrome).
+
+## Critics' scores (optional)
+
+TMDB doesn't carry Rotten Tomatoes scores, and Rotten Tomatoes has no public
+API, so they come from OMDb. Get a free key at
+<https://www.omdbapi.com/apikey.aspx> (it arrives by email and must be
+activated from the link in it), then set it as `OMDB_KEY`.
+
+A title's sheet then shows its Rotten Tomatoes (critics), IMDb and Metacritic
+scores where OMDb has them; OMDb has no audience score, and TV coverage is
+thinner than for films. Scores are looked up only when you open a title, and
+each device and the Worker keep them for a while, so the free key's 1,000
+lookups a day go a long way. Without the key the scores just don't appear.
 
 ## Claude model and cost
 
@@ -80,6 +95,7 @@ Put the secrets in a `.dev.vars` file (already git-ignored):
 TMDB_TOKEN=...
 ANTHROPIC_API_KEY=...
 APP_PASSCODE=...
+OMDB_KEY=...
 ```
 
 then `npx wrangler dev` and open the URL it prints.

@@ -30,8 +30,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
 - `worker.js` — Cloudflare Worker: serves the static files, proxies TMDB
   (`/api/tmdb/…`, read-only, allow-listed paths, edge-cached), runs Claude
   jobs (`/api/jobs`, the model and key fixed server-side), and holds the list
-  in the `WatchStore` Durable Object (`/api/sync`). Every `/api/` call is
-  gated by the `X-App-Key` passcode. See `SETUP.md`.
+  in the `WatchStore` Durable Object (`/api/sync`). With the optional
+  `OMDB_KEY` it also returns a title's Rotten Tomatoes, IMDb and Metacritic
+  scores from OMDb (`/api/ratings/<imdb id>`, edge-cached a day); the app asks
+  only when a title's sheet opens, since the free key allows 1,000 a day.
+  Every `/api/` call is gated by the `X-App-Key` passcode. See `SETUP.md`.
 - Claude jobs: each runs in its own `ClaudeJob` Durable Object, driven by
   alarms, so it finishes when a phone suspends the app; the app polls
   `/api/jobs/<id>`. Long lists are read in pieces, and title lookups on TMDB
@@ -80,7 +83,7 @@ The app is a single-file PWA. There is no build step: edit and ship.
   840px a navigation rail replaces the bottom bar; all wide-screen overrides
   live in the `/* ── Wide screens ── */` block at the end of the stylesheet.
   Phones must not change when that block does.
-- Credit TMDB and JustWatch wherever their data is shown (Settings → About
+- Credit TMDB, JustWatch and OMDb wherever their data is shown (Settings → About
   carries TMDB's required notice).
 - Bump `APP_VERSION` in `index.html` with every user-visible change, and the
   `CACHE_NAME` in `sw.js` when cached files change.

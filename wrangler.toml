@@ -37,6 +37,7 @@ new_sqlite_classes = ["ClaudeJob"]
 #   npx wrangler secret put APP_PASSCODE
 #   npx wrangler secret put TMDB_TOKEN
 #   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put OMDB_KEY          (optional: critics' scores)
 #
 # Optional: use a different Claude model without editing code.
 # [vars]
