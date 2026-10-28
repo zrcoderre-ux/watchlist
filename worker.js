@@ -218,7 +218,7 @@ async function lookupTitle(env, { title, year, type }, budget) {
       r: {
         id: r.id, title: r.title, name: r.name, release_date: r.release_date, first_air_date: r.first_air_date,
         poster_path: r.poster_path, backdrop_path: r.backdrop_path, genre_ids: r.genre_ids,
-        overview: String(r.overview || '').slice(0, 600), vote_average: r.vote_average, vote_count: r.vote_count
+        overview: String(r.overview || '').slice(0, 600), vote_average: r.vote_average, vote_count: r.vote_count, original_language: r.original_language
       }
     };
   };

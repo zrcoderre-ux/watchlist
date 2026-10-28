@@ -33,6 +33,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   deleted, only re-statused, so a removal syncs like any other edit.
 - `details` is a per-device cache of TMDB details and where a title streams,
   refreshed after 3 days. It is not synced.
+- Genre balance (`// ── Taste ───`): a small logistic model, refit when
+  `itemsVersion` changes, learns from the last 500 keeps and passes how each
+  genre (plus Anime, i.e. Japanese animation) moves the odds of keeping a
+  title. Discover thins TMDB's lists by it and "For you" tells Claude about
+  it. No title's chance goes below `TASTE_FLOOR`; never let it reach zero.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 

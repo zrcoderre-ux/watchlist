@@ -987,6 +987,12 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
             </div>
 
             <div class="section-card">
+              <h3>What Discover shows less of</h3>
+              <p>Learned from your swipes. Genres you often pass on come up less, but never stop completely.</p>
+              <div id="taste-list"></div>
+            </div>
+
+            <div class="section-card">
               <h3>Sync</h3>
               <p>Your list is kept on your Worker, so every device you sign in on sees the same one.</p>
               <div class="setting-row" style="cursor:default">
@@ -1066,7 +1072,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 const REGIONS = [
@@ -1099,6 +1105,7 @@ let items = {};
 let prefs = { services: [], region: 'US', updatedAt: 0 };
 let prefsDirty = false;
 let dirty = new Set();          // item keys changed since the last sync
+let itemsVersion = 0;           // bumps on every change to items, for caches
 let lastSync = 0;               // server clock at the last sync
 let syncing = false;
 let syncError = '';
@@ -1354,7 +1361,8 @@ function normalize(r, typeHint) {
     genres: genreNames(ids, type),
     overview: r.overview || '',
     vote: Math.round((r.vote_average || 0) * 10) / 10,
-    votes: r.vote_count || 0
+    votes: r.vote_count || 0,
+    lang: r.original_language || ''
   };
   titles[t.key] = Object.assign(titles[t.key] || {}, t);
   return titles[t.key];
@@ -1375,7 +1383,7 @@ function metaLine(t, withType = true) {
 // Fields kept for every title the person has acted on. Passed titles keep
 // less: they're only there so the deck skips them and Claude learns from them.
 function baseRecord(t, status) {
-  const r = { key: t.key, id: t.id, type: t.type, title: t.title, year: t.year, genres: t.genres || [], poster: t.poster || '' };
+  const r = { key: t.key, id: t.id, type: t.type, title: t.title, year: t.year, genres: t.genres || [], lang: t.lang || '', poster: t.poster || '' };
   if (status !== 'pass') Object.assign(r, { backdrop: t.backdrop || '', overview: t.overview || '', vote: t.vote || 0, date: t.date || '' });
   return r;
 }
@@ -1388,6 +1396,7 @@ function setItem(t, patch) {
   if (status === 'watched' && (!prev || prev.status !== 'watched') && !patch.watchedAt) it.watchedAt = now;
   if (!it.source) it.source = patch.source || 'app';
   items[t.key] = it;
+  itemsVersion++;
   dirty.add(t.key);
   saveItems();
   scheduleSync();
@@ -1441,6 +1450,8 @@ async function getDetails(key, force = false) {
     // title imported from a photo or another device may).
     const t = normalize(r, type);
     if (t && items[key] && !items[key].backdrop && t.backdrop) { items[key].backdrop = t.backdrop; saveItems(); }
+    // Records from before the language was kept: needed to tell anime apart.
+    if (t && items[key] && !items[key].lang && t.lang) { items[key].lang = t.lang; saveItems(); }
     return d;
   })();
   detailsInflight.set(key, p);
@@ -1491,6 +1502,7 @@ async function syncNow(manual) {
       if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) {
         delete it.serverAt;
         items[it.key] = it;
+        itemsVersion++;
         changed = true;
       }
     }
@@ -1545,6 +1557,86 @@ function renderCurrent() {
   else if (currentTab === 'watchlist') renderWatchlist();
   else if (currentTab === 'tonight') renderTonightControls();
   else if (currentTab === 'settings') renderSettings();
+}
+
+// ── Taste: genre balance ───────────────────────────────────
+// Discover shows less of what the person keeps passing on, but never none of
+// it. A small logistic model learns, from recent decisions, how each genre
+// moves the chance they keep a title; fitting the genres together puts the
+// blame where it belongs (passing on anime lowers Anime, not every Action
+// film). A genre with little evidence stays near neutral, and no title's
+// chance falls below TASTE_FLOOR, so about one in seven still comes through.
+const TASTE_FLOOR = 0.15;
+const TASTE_PRIOR = 4;          // pull toward neutral, in decisions' worth
+const TASTE_WINDOW = 500;       // most recent decisions considered
+// Genres, plus Anime: TMDB has no such genre, so it's Japanese animation.
+function tasteTags(t) {
+  const g = t.genres || [];
+  return g.includes('Animation') && t.lang === 'ja' ? [...g, 'Anime'] : g;
+}
+let tasteCache = null;          // { version, model }, refit when items change
+// { b, w: {tag: effect} } on the log-odds of keeping a title, or null until
+// there are enough decisions (including some passes) to learn from.
+function tasteModel() {
+  if (tasteCache && tasteCache.version === itemsVersion) return tasteCache.model;
+  const data = Object.values(items)
+    .filter(i => i.status === 'want' || i.status === 'pass' || i.status === 'watched')
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, TASTE_WINDOW)
+    .map(i => {
+      const keep = !(i.status === 'pass' || (i.status === 'watched' && i.myRating === -1));
+      return { x: tasteTags(i), y: keep ? 1 : 0, n: keep && i.myRating === 2 ? 2 : 1 };
+    });
+  let model = null;
+  const total = data.reduce((m, d) => m + d.n, 0);
+  const kept = data.reduce((m, d) => m + d.n * d.y, 0);
+  if (data.length >= 10 && kept > 0 && kept < total) {
+    const sig = z => 1 / (1 + Math.exp(-z));
+    let b = Math.log(kept / (total - kept));
+    const w = {};
+    for (const d of data) for (const g of d.x) w[g] = 0;
+    for (let it = 0; it < 300; it++) {
+      let gb = 0;
+      const gw = {};
+      for (const g in w) gw[g] = TASTE_PRIOR * w[g];
+      for (const d of data) {
+        let z = b;
+        for (const g of d.x) z += w[g];
+        const err = (sig(z) - d.y) * d.n;
+        gb += err;
+        for (const g of d.x) gw[g] += err;
+      }
+      b -= 2 * gb / total;
+      for (const g in w) w[g] -= 2 * gw[g] / total;
+    }
+    model = { b, w };
+  }
+  tasteCache = { version: itemsVersion, model };
+  return model;
+}
+// How a set of genre effects compares with an average title, as a chance of
+// showing it: only ever lowered, never below the floor.
+function tasteChance(m, effect) {
+  const sig = z => 1 / (1 + Math.exp(-z));
+  return Math.max(TASTE_FLOOR, Math.min(1, Math.pow(sig(m.b + effect) / sig(m.b), 1.5)));
+}
+// The chance a title is shown. A genre picked as a filter doesn't count.
+function tasteWeight(t) {
+  const m = tasteModel();
+  if (!m) return 1;
+  const effect = tasteTags(t).filter(g => g !== deckFilters.genre).reduce((s, g) => s + (m.w[g] || 0), 0);
+  return tasteChance(m, effect);
+}
+function tasteWeights() {
+  const m = tasteModel();
+  if (!m) return {};
+  return Object.fromEntries(Object.entries(m.w).map(([g, e]) => [g, tasteChance(m, e)]));
+}
+// Genres being shown less, least-liked first: [[tag, chance], …], where
+// chance is for a title with just that genre. Titles stack their genres, so
+// an anime (Animation + Anime + Action, say) is shown less than any one alone.
+function tasteLeanings() {
+  return Object.entries(tasteWeights()).filter(([, w]) => w < 0.7).sort((a, b) => a[1] - b[1]);
 }
 
 // ── Discover: the deck ─────────────────────────────────────
@@ -1631,7 +1723,12 @@ async function fillDeck() {
       tries++;
       const batch = deckFilters.mode === 'ai' ? await aiSuggestions() : await fetchDeckPage();
       if (gen !== deckGen) return;
-      for (const t of batch) if (deckWants(t)) { deck.push(t); deckKeys.add(t.key); added++; }
+      for (const t of batch) {
+        if (!deckWants(t)) continue;
+        // Claude's picks already allow for taste; TMDB's lists get thinned.
+        if (deckFilters.mode !== 'ai' && Math.random() >= tasteWeight(t)) continue;
+        deck.push(t); deckKeys.add(t.key); added++;
+      }
       if (deckFilters.mode === 'ai') deckDone = true;   // one Claude call per tap of "For you"
     }
   } catch (e) {
@@ -1858,6 +1955,11 @@ async function aiSuggestions() {
   if (deckFilters.type !== 'all') asks.push(deckFilters.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
   if (deckFilters.genre) asks.push(`Only ${deckFilters.genre} titles.`);
   if (deckFilters.mine && prefs.services.length) asks.push(`Prefer titles streaming in ${prefs.region} on: ${serviceNames().join(', ')}.`);
+  const lean = tasteLeanings().filter(([g]) => g !== deckFilters.genre).slice(0, 6);
+  if (lean.length && !deckFilters.genre) {
+    asks.push('From their swipes they lean away from some genres. Include fewer of these, but never none: ' +
+      lean.map(([g, w]) => `${g} (${w < 0.35 ? '1' : '2 or 3'} of 20)`).join(', ') + '.');
+  }
   const known = Object.values(items).filter(i => i.status !== 'none').length;
   const r = await askClaude({
     effort: 'medium',
@@ -2534,8 +2636,15 @@ function renderSettings() {
   const n = s => Object.values(items).filter(i => i.status === s).length;
   $('backup-counts').textContent = `${n('want')} to watch, ${n('watched')} watched, ${n('pass')} passed.`;
   renderSyncStatus();
+  renderTasteList();
   renderProviderGrid();
   if (!providerCatalog || providerCatalog.region !== prefs.region) loadProviderCatalog();
+}
+function renderTasteList() {
+  const lean = tasteLeanings();
+  $('taste-list').innerHTML = lean.length
+    ? `<div class="genre-chips">${lean.map(([g, w]) => `<span>${esc(g)} · ${w < 0.35 ? 'rarely' : 'less often'}</span>`).join('')}</div>`
+    : `<div class="small muted">Nothing yet. Keep swiping and this fills in.</div>`;
 }
 async function loadProviderCatalog() {
   if (!passcode) return;
@@ -2638,7 +2747,7 @@ async function restoreBackup(file) {
     for (const it of data.items) {
       if (!it || !it.key) continue;
       const cur = items[it.key];
-      if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) { items[it.key] = it; dirty.add(it.key); n++; }
+      if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) { items[it.key] = it; dirty.add(it.key); itemsVersion++; n++; }
     }
     if (data.prefs && (data.prefs.updatedAt || 0) > (prefs.updatedAt || 0)) { prefs = data.prefs; prefsDirty = true; savePrefs(); }
     saveItems();
