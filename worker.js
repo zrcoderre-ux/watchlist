@@ -6,7 +6,9 @@
 //                          server's read token. Cached at the edge.
 //   GET  /api/ratings/<imdb id>
 //                          Rotten Tomatoes, IMDb and Metacritic scores from
-//                          OMDb, with the server's key. Cached at the edge.
+//                          OMDb, with the server's key. Kept for good in the
+//                          ScoreStore Durable Object, so OMDb is asked about a
+//                          title only once in a long while.
 //   POST /api/jobs         Starts a Claude job; GET /api/jobs/<id> polls it.
 //                          The work runs in a Durable Object, so it carries on
 //                          when the phone puts the app in the background.
@@ -29,6 +31,10 @@ const TMDB_CACHE_SECONDS = 6 * 3600;       // providers update daily; trending w
 
 const OMDB_BASE = 'https://www.omdbapi.com/';
 const OMDB_CACHE_SECONDS = 24 * 3600;      // the free key allows 1,000 lookups a day
+// Stored scores are asked for again only this often: a recent title's still
+// move, an older one's have settled.
+const SCORE_RECHECK_RECENT_MS = 14 * 24 * 3600 * 1000;
+const SCORE_RECHECK_OLD_MS = 180 * 24 * 3600 * 1000;
 const IMDB_ID = /^tt\d{5,10}$/;
 
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
@@ -137,25 +143,50 @@ async function ratings(url, env, ctx) {
   const hit = await cache.match(cacheKey);
   if (hit) return hit;
 
+  const store = env.SCORES.get(env.SCORES.idFromName('scores'));
+  const stored = await (await store.fetch('https://scores/get?id=' + id)).json();
+  let scores = stored && scoresFresh(stored) ? stored : null;
+  if (!scores) {
+    try {
+      scores = await omdbScores(id, env);
+      await store.fetch('https://scores/put', { method: 'POST', body: JSON.stringify({ id, scores }) });
+    } catch (e) {
+      // A bad key or the day's limit: what was stored, however old, beats nothing.
+      if (!stored) return json({ error: e.message }, 502);
+      scores = stored;
+    }
+  }
+  const out = json({ rt: scores.rt, imdb: scores.imdb, mc: scores.mc }, 200, {
+    'Cache-Control': `public, max-age=${OMDB_CACHE_SECONDS}`
+  });
+  ctx.waitUntil(cache.put(cacheKey, out.clone()));
+  return out;
+}
+
+function scoresFresh(s) {
+  const recent = !s.year || s.year >= new Date().getUTCFullYear() - 1;
+  return Date.now() - (s.at || 0) < (recent ? SCORE_RECHECK_RECENT_MS : SCORE_RECHECK_OLD_MS);
+}
+
+// One OMDb lookup: { rt, imdb, mc, year, at }, null where OMDb has no score.
+async function omdbScores(id, env) {
   const res = await fetch(OMDB_BASE + '?' + new URLSearchParams({ i: id, apikey: env.OMDB_KEY }), {
     headers: { Accept: 'application/json' }
   });
   const data = await res.json().catch(() => ({}));
-  // An unknown title is an answer; a bad key or the day's limit is not, and
-  // isn't cached.
+  // An unknown title is an answer; a bad key or the day's limit is not.
   if (data.Response !== 'True' && !/not found|incorrect imdb/i.test(data.Error || '')) {
-    return json({ error: 'OMDb: ' + (data.Error || 'returned ' + res.status) }, 502);
+    throw new Error('OMDb: ' + (data.Error || 'returned ' + res.status));
   }
   const num = (v, max) => {
     const n = parseFloat(String(v || '').replace(/[^0-9.]/g, ''));
     return Number.isFinite(n) && n >= 0 && n <= max ? n : null;
   };
   const rt = ((data.Ratings || []).find(r => r && r.Source === 'Rotten Tomatoes') || {}).Value;
-  const out = json({ rt: num(rt, 100), imdb: num(data.imdbRating, 10), mc: num(data.Metascore, 100) }, 200, {
-    'Cache-Control': `public, max-age=${OMDB_CACHE_SECONDS}`
-  });
-  ctx.waitUntil(cache.put(cacheKey, out.clone()));
-  return out;
+  return {
+    rt: num(rt, 100), imdb: num(data.imdbRating, 10), mc: num(data.Metascore, 100),
+    year: parseInt(data.Year, 10) || 0, at: Date.now()
+  };
 }
 
 // ── Claude ─────────────────────────────────────────────────
@@ -274,6 +305,28 @@ async function lookupTitle(env, { title, year, type }, budget) {
     if (r.length) return best(r, type);
   }
   return best(await search('search/multi', {}));
+}
+
+// ── Score store ────────────────────────────────────────────
+// Every title's scores as OMDb last gave them, one storage key per IMDb id.
+export class ScoreStore {
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname === '/get') {
+      const id = url.searchParams.get('id') || '';
+      return json(IMDB_ID.test(id) ? (await this.ctx.storage.get('score:' + id)) || null : null);
+    }
+    if (url.pathname === '/put' && request.method === 'POST') {
+      const { id, scores } = await request.json();
+      if (IMDB_ID.test(id) && scores) await this.ctx.storage.put('score:' + id, scores);
+      return json({ ok: true });
+    }
+    return json({ error: 'Not found.' }, 404);
+  }
 }
 
 // ── Sync store ─────────────────────────────────────────────

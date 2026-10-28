@@ -60,9 +60,11 @@ activated from the link in it), then set it as `OMDB_KEY`.
 
 A title's sheet then shows its Rotten Tomatoes (critics), IMDb and Metacritic
 scores where OMDb has them; OMDb has no audience score, and TV coverage is
-thinner than for films. Scores are looked up only when you open a title, and
-each device and the Worker keep them for a while, so the free key's 1,000
-lookups a day go a long way. Without the key the scores just don't appear.
+thinner than for films. The Worker keeps every title's scores (in the
+`ScoreStore` Durable Object, which the deploy creates) and asks OMDb again
+only every couple of weeks for new releases and twice a year for older ones,
+so the free key's 1,000 lookups a day go a long way. Without the key the
+scores just don't appear.
 
 ## Claude model and cost
 

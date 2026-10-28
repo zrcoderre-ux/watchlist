@@ -1083,15 +1083,21 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
-// "For you" keeps titles TMDB's audience rates this high (out of 10, on enough
-// votes to mean something); below it only what Claude calls a very strong match.
-// Where Rotten Tomatoes has a critics' score, that decides instead.
+// "For you" keeps titles that clear a floor, or that Claude calls a very strong
+// match: Rotten Tomatoes' critics where it has a score, else TMDB's audience
+// (on enough votes to mean something). The floor follows what the person liked
+// and loved (see aiFloors); these are where it starts, and its bounds.
 const AI_MIN_SCORE = 8;
 const AI_MIN_VOTES = 50;
 const AI_MIN_RT = 80;
+const AI_FLOOR_SAMPLE = 8;       // liked titles with a score before the floor moves
+const AI_FLOOR_RT = [60, 90];
+const AI_FLOOR_SCORE = [6.5, 8.5];
+// Scores rarely change, and the server keeps them; a device checks back monthly.
+const RATINGS_STALE_MS = 30 * 24 * 3600 * 1000;
 const REGIONS = [
   ['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['IE', 'Ireland'],
   ['AU', 'Australia'], ['NZ', 'New Zealand'], ['DE', 'Germany'], ['FR', 'France'],
@@ -1512,7 +1518,7 @@ function criticsText(key) {
 }
 function ratingsFresh(key) {
   const d = details[key];
-  return !!(d && d.ratings && Date.now() - d.ratings.at < DETAILS_STALE_MS);
+  return !!(d && d.ratings && Date.now() - d.ratings.at < RATINGS_STALE_MS);
 }
 function myProviders(key) {
   const d = details[key];
@@ -1528,9 +1534,12 @@ let refreshing = false;
 async function refreshStaleDetails(limit = 60) {
   if (refreshing || !passcode || !navigator.onLine) return;
   const want = Object.values(items).filter(i => i.status === 'want');
-  const keys = want.filter(i => !detailsFresh(i.key)).map(i => i.key).slice(0, limit);
-  // Critics' scores for the rows too, a slice at a time (OMDb counts each one).
-  const scoreKeys = ratingsOff ? [] : want.filter(i => !ratingsFresh(i.key)).map(i => i.key).slice(0, limit);
+  // What they liked and loved sets the "For you" floor, so it needs scores too.
+  const liked = Object.values(items).filter(i => i.status === 'watched' && i.myRating > 0);
+  const keys = [...want.filter(i => !detailsFresh(i.key)), ...liked.filter(i => !details[i.key] || details[i.key].imdb === undefined)]
+    .map(i => i.key).slice(0, limit);
+  // Critics' scores for the rows too, a slice at a time.
+  const scoreKeys = ratingsOff ? [] : [...want, ...liked].filter(i => !ratingsFresh(i.key)).map(i => i.key).slice(0, limit);
   if (!keys.length && !scoreKeys.length) return;
   refreshing = true;
   const rerender = debounce(() => { if (currentTab === 'watchlist') renderWatchlist(); }, 400);
@@ -1831,6 +1840,12 @@ async function fetchDeckPage() {
   return out;
 }
 
+function floorNote() {
+  const f = aiFloors();
+  const from = f.rtFrom || f.scoreFrom;
+  return `Picks clear RT ${f.rt}% (or ★ ${f.score.toFixed(1)} without a critics' score)` +
+    (from ? `, set from ${from} titles you liked.` : `. Rate ${AI_FLOOR_SAMPLE} titles you liked to tune it.`);
+}
 function cardHtml(t, behind) {
   const mine = myProviders(t.key);
   let provs = '';
@@ -1864,7 +1879,7 @@ function renderDeck() {
     } else if (deckError) {
       el.innerHTML = `<div class="deck-empty">${icon('cloudOff')}<div>${esc(deckError)}</div><button class="btn tonal" onclick="resetDeck()">${icon('refresh')}Try again</button></div>`;
     } else if (deckFilters.mode === 'ai') {
-      el.innerHTML = `<div class="deck-empty">${icon('wandStars')}<div>${deckDone ? "That's all of this batch." : 'Claude suggests titles from what you like.'}</div><button class="btn filled" onclick="setDeckMode('ai')">${icon('wandStars')}${deckDone ? 'More picks' : 'Get picks'}</button></div>`;
+      el.innerHTML = `<div class="deck-empty">${icon('wandStars')}<div>${deckDone ? "That's all of this batch." : 'Claude suggests titles from what you like.'}</div><div class="small muted">${esc(floorNote())}</div><button class="btn filled" onclick="setDeckMode('ai')">${icon('wandStars')}${deckDone ? 'More picks' : 'Get picks'}</button></div>`;
     } else {
       el.innerHTML = `<div class="deck-empty">${icon('check')}<div>You've seen everything here. Try another filter.</div></div>`;
     }
@@ -2042,6 +2057,21 @@ const SUGGEST_SCHEMA = {
   required: ['suggestions'],
   additionalProperties: false
 };
+// The "For you" floor: just under the score three in four of the titles they
+// liked or loved reach, once enough of them have one; the defaults until then.
+function aiFloors() {
+  const liked = Object.values(items).filter(i => i.status === 'watched' && i.myRating > 0);
+  const q1 = list => { const a = list.slice().sort((x, y) => x - y); return a[Math.floor((a.length - 1) / 4)]; };
+  const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
+  const rts = liked.map(i => details[i.key] && details[i.key].ratings && details[i.key].ratings.rt).filter(n => n != null);
+  const votes = liked.map(i => i.vote).filter(v => v > 0);
+  return {
+    rt: rts.length >= AI_FLOOR_SAMPLE ? clamp(Math.round(q1(rts)) - 3, AI_FLOOR_RT) : AI_MIN_RT,
+    score: votes.length >= AI_FLOOR_SAMPLE ? clamp(Math.round((q1(votes) - 0.2) * 10) / 10, AI_FLOOR_SCORE) : AI_MIN_SCORE,
+    rtFrom: rts.length >= AI_FLOOR_SAMPLE ? rts.length : 0,
+    scoreFrom: votes.length >= AI_FLOOR_SAMPLE ? votes.length : 0
+  };
+}
 // The filters a "For you" request was asked with; its picks fit only these.
 function aiSig() { return [deckFilters.type, deckFilters.genre, deckFilters.mine].join('|'); }
 function startAiRun() {
@@ -2066,6 +2096,7 @@ function startAiRun() {
 }
 async function aiSuggestions(f) {
   const taste = tasteProfile();
+  const floor = aiFloors();
   const asks = [];
   if (f.type !== 'all') asks.push(f.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
   if (f.genre) asks.push(`Only ${f.genre} titles.`);
@@ -2082,7 +2113,7 @@ async function aiSuggestions(f) {
     system: 'You recommend movies and TV shows for one person, based on what they have told a watchlist app about their taste. ' +
       'Suggest only real titles you are confident about; the app looks each one up on The Movie Database by title and year, so give the original release year and the title as TMDB lists it. ' +
       'Never suggest anything already in their lists. Mix well-known picks with lesser-known ones that fit, and spread across the kinds of things they enjoy unless they ask for something narrower. ' +
-      `Suggest only titles that clear this bar: ${AI_MIN_RT}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise an audience rating of ${AI_MIN_SCORE} out of 10 or higher (on TMDB or IMDb). A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
+      `Suggest only titles that clear this bar: ${floor.rt}% or more of critics on Rotten Tomatoes where it has a critics' score, otherwise an audience rating of ${floor.score} out of 10 or higher (on TMDB or IMDb). A title below the bar is allowed only when it is an exceptionally strong match for this person's specific taste, more than merely the right genre; set strongMatch true for those and false for everything else. The app drops titles below the bar that are not marked strongMatch. ` +
       'Each reason is one sentence to them ("you"), under 20 words, tying the pick to specific titles they liked or wanted.',
     content: [{
       type: 'text',
@@ -2099,9 +2130,9 @@ async function aiSuggestions(f) {
     try { await getDetails(x.t.key); x.rt = ((await getRatings(x.t.key)) || {}).rt; } catch (e) {}
   });
   let out = picks.filter(x => x.s.strongMatch || (x.rt != null
-    ? x.rt >= AI_MIN_RT
+    ? x.rt >= floor.rt
     // A rating on only a handful of votes doesn't clear the bar on its own.
-    : x.t.vote >= AI_MIN_SCORE && x.t.votes >= AI_MIN_VOTES)).map(x => {
+    : x.t.vote >= floor.score && x.t.votes >= AI_MIN_VOTES)).map(x => {
     x.t.aiReason = x.s.reason;
     return x.t;
   });

@@ -33,6 +33,16 @@ class_name = "ClaudeJob"
 tag = "v2"
 new_sqlite_classes = ["ClaudeJob"]
 
+# Every title's critics' scores, kept so OMDb is asked about each one only
+# once in a long while.
+[[durable_objects.bindings]]
+name = "SCORES"
+class_name = "ScoreStore"
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["ScoreStore"]
+
 # Secrets, set once and never here:
 #   npx wrangler secret put APP_PASSCODE
 #   npx wrangler secret put TMDB_TOKEN
