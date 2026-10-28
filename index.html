@@ -1094,7 +1094,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -2101,7 +2101,8 @@ function undoDecision() {
 
 // ── Discover: Claude's picks ───────────────────────────────
 function titleLine(i) { return `${i.title}${i.year ? ' (' + i.year + ')' : ''} [${i.type === 'tv' ? 'TV' : 'movie'}]`; }
-function tasteProfile(withLists = true) {
+// `shown`, if given, collects the keys the profile lists.
+function tasteProfile(withLists = true, shown = null) {
   const all = Object.values(items);
   const by = f => all.filter(f).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const loved = by(i => i.status === 'watched' && i.myRating === 2).slice(0, 60);
@@ -2109,7 +2110,10 @@ function tasteProfile(withLists = true) {
   const disliked = by(i => i.status === 'watched' && i.myRating === -1).slice(0, 40);
   const want = by(i => i.status === 'want').slice(0, 80);
   const passed = by(i => i.status === 'pass').slice(0, 60);
-  const sec = (h, list) => list.length ? `${h}:\n${list.map(titleLine).join('\n')}` : '';
+  const sec = (h, list) => {
+    if (shown) list.forEach(i => shown.add(i.key));
+    return list.length ? `${h}:\n${list.map(titleLine).join('\n')}` : '';
+  };
   return [
     sec('Watched and loved', loved),
     sec('Watched and liked', liked),
@@ -2232,7 +2236,14 @@ function startAiRun(f, resumeId) {
 // Twenty picks for filters f. With resumeId, collects the answer to a request
 // made before the app was last closed.
 async function aiSuggestions(f, resumeId) {
-  const taste = tasteProfile();
+  const inProfile = new Set();
+  const taste = tasteProfile(true, inProfile);
+  // Everything else they've seen or saved, tersely, so no pick is spent on it.
+  // Passes past the profile's recent ones are left out: one coming back now
+  // and then is fine.
+  const seenOrSaved = Object.values(items)
+    .filter(i => (i.status === 'watched' || i.status === 'want') && !inProfile.has(i.key))
+    .map(i => `${i.title}${i.year ? ' (' + i.year + ')' : ''}`);
   const floor = aiFloors();
   const asks = [];
   if (f.type !== 'all') asks.push(f.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
@@ -2259,9 +2270,10 @@ async function aiSuggestions(f, resumeId) {
     content: [{
       type: 'text',
       text: (taste || 'They have not rated anything yet. Suggest a varied set of widely loved, recent titles.') +
+        (seenOrSaved.length ? `\n\nAlso already seen or on their watchlist (never suggest these): ${seenOrSaved.join('; ')}` : '') +
         (waiting.length ? `\n\nAlready picked for them and waiting to be shown (don't suggest these again):\n${waiting.map(titleLine).join('\n')}` : '') +
         `\n\nSuggest 20 titles.${asks.length ? ' ' + asks.join(' ') : ''}` +
-        (known > 300 ? '\n(Their lists above are trimmed to the most recent entries; they have more.)' : '')
+        (known > 300 ? '\n(Their taste lists above are trimmed to the most recent entries.)' : '')
     }],
     resolve: 'suggestions'
   });
