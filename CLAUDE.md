@@ -91,10 +91,14 @@ The app is a single-file PWA. There is no build step: edit and ship.
   counting `AI_FLOOR_LOVED_WEIGHT` times; RT −3, blended −0.2),
   within `AI_FLOOR_RT` / `AI_FLOOR_SCORE`; until then 80% / 8.0. Claude is
   told the floor; the app enforces it.
-- A "For you" request lives in `aiRun`, keyed by the filters it was asked
-  with, not in the deck: switching lists leaves it running, and its picks wait
-  (dot on the chip, a toast) until "For you" is chosen again with the same
-  filters. It isn't kept across a reload.
+- "For you" is made ahead: `topUpAi()` keeps `AI_READY` (2) batches waiting
+  in `aiQueue` (`wl.aiQueue`, kept `AI_READY_DAYS`) for the filters last used
+  with "For you" (`wl.aiFilters`), one request at a time, each told what's
+  already waiting so it doesn't repeat it. Tapping "For you" takes the oldest
+  batch at once and tops up behind it. Requests in flight live in `aiRuns`
+  (by filter set); one still running at a reload is collected from its job id
+  (`wl.aiPending`). If the person had to wait and left, the chip shows a dot
+  and a toast says when the picks are ready.
 - Recommendations default to the person's services: Discover's "My services"
   (`deckMineSet`) and Tonight's switch (`wl.tonightMine`) are on whenever
   services are picked, until the person flips them; only a flipped choice is

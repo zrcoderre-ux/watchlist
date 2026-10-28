@@ -1094,7 +1094,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.10.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -1168,9 +1168,12 @@ let deckLoading = false;
 let deckDone = false;
 let deckError = '';
 let deckGen = 0;                // bumps when filters change, so stale fetches are dropped
-// The latest "For you" request: { sig, promise, titles }. It keeps running when
-// another list is chosen, and its picks wait here until "For you" shows them.
-let aiRun = null;
+// "For you" picks made ahead (see topUpAi): batches of titles with Claude's
+// reasons, for one set of filters each, kept on the device for a few days.
+let aiQueue = [];               // [{ sig, at, titles }]
+let aiRuns = new Map();         // sig → { sig, promise } while Claude works on one
+let aiFilters = null;           // the filters last used with "For you": what's made ahead
+let aiWanted = false;           // "For you" was asked for and had to wait
 let undoStack = [];
 
 let wlView = 'list';
@@ -1667,6 +1670,8 @@ const TASTE_WINDOW = 500;       // most recent decisions considered
 // Each page of Trending, Top rated and New is reordered: best reviewed first,
 // nudged by taste (this many review points per unit of a title's genre pull).
 const DECK_TASTE_PULL = 0.5;
+const AI_READY = 2;             // "For you" batches kept made ahead
+const AI_READY_DAYS = 3;        // and how long one keeps
 const DECK_REVIEW_PRIOR = 6.5;  // what TMDB's rating is pulled toward on few votes
 // No list recommends a panned title: Rotten on Rotten Tomatoes where it has a
 // score, else a blended score under this. Titles too new to judge still show.
@@ -1765,9 +1770,10 @@ function tasteLeanings() {
 function renderDeckChips() {
   document.querySelectorAll('#deck-chips [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === deckFilters.mode));
   const ai = document.querySelector('#deck-chips [data-mode="ai"]');
-  const waiting = deckFilters.mode !== 'ai' && aiRun && aiRun.sig === aiSig();
-  ai.classList.toggle('busy', !!waiting && !aiRun.titles);
-  ai.classList.toggle('ready', !!waiting && !!aiRun.titles);
+  // Only for picks they asked for and left: made-ahead batches go unremarked.
+  const waiting = deckFilters.mode !== 'ai' && aiWanted;
+  ai.classList.toggle('busy', waiting && aiRuns.has(aiSig()) && !aiReady(aiSig()).length);
+  ai.classList.toggle('ready', waiting && aiReady(aiSig()).length > 0);
   $('deck-type').value = deckFilters.type;
   $('deck-type').classList.toggle('on', deckFilters.type !== 'all');
   $('deck-genre').value = deckFilters.genre;
@@ -1856,16 +1862,24 @@ async function fillDeck() {
     let added = 0, tries = 0;
     while (deck.length < 10 && !deckDone && tries < 4 && gen === deckGen) {
       tries++;
-      let batch, run;
+      let batch;
       if (deckFilters.mode === 'ai') {
-        run = aiRun && aiRun.sig === aiSig() ? aiRun : startAiRun();
-        batch = await run.promise;
+        const sig = aiSig();
+        aiFilters = { type: deckFilters.type, genre: deckFilters.genre, mine: deckFilters.mine };
+        lsSet('wl.aiFilters', aiFilters);
+        if (!aiReady(sig).length) {
+          aiWanted = true;
+          await (aiRuns.get(sig) || startAiRun(aiFilters)).promise;
+          // Switched away: the deck moved on, and the picks wait in aiQueue.
+          if (gen !== deckGen) return;
+        }
+        aiWanted = false;
+        batch = takeAiBatch(sig);
+        topUpAi();
       } else {
         batch = await fetchDeckPage();
       }
-      // Switched away: the deck moved on, and Claude's picks wait in aiRun.
       if (gen !== deckGen) return;
-      if (run && aiRun === run) aiRun = null;
       const fresh = [];
       for (const t of batch) {
         if (!deckWants(t) || fresh.some(x => x.key === t.key)) continue;
@@ -2163,29 +2177,61 @@ function aiFloors() {
     scoreFrom: votes.length >= AI_FLOOR_SAMPLE ? votes.length : 0
   };
 }
-// The filters a "For you" request was asked with; its picks fit only these.
-function aiSig() { return [deckFilters.type, deckFilters.genre, deckFilters.mine].join('|'); }
-function startAiRun() {
-  const run = { sig: aiSig(), titles: null };
-  run.promise = aiSuggestions({ ...deckFilters }).then(titles => {
-    run.titles = titles;
-    if (aiRun === run && deckFilters.mode !== 'ai') {
-      renderDeckChips();
-      if (run.sig === aiSig()) toast('Your picks from Claude are ready', 'Show', () => { switchTab('discover'); setDeckMode('ai'); });
+// The filters a "For you" batch was asked with; its picks fit only these.
+function aiSig(f = deckFilters) { return [f.type, f.genre, f.mine].join('|'); }
+function saveAiQueue() { lsSet('wl.aiQueue', aiQueue); }
+function aiReady(sig) {
+  return aiQueue.filter(b => b.sig === sig && Date.now() - b.at < AI_READY_DAYS * 864e5);
+}
+// The oldest ready batch for these filters, off the queue and into the deck.
+function takeAiBatch(sig) {
+  const b = aiReady(sig)[0];
+  if (!b) return [];
+  aiQueue = aiQueue.filter(x => x !== b);
+  saveAiQueue();
+  return b.titles.map(t => Object.assign(titles[t.key] || (titles[t.key] = {}), t));
+}
+// Keep AI_READY batches made ahead for the filters last used with "For you",
+// one request at a time: each is told what's already waiting, so it doesn't
+// repeat it. Changing filters on the other lists doesn't spend anything.
+function topUpAi() {
+  if (!passcode || !navigator.onLine) return;
+  const f = aiFilters || { type: deckFilters.type, genre: deckFilters.genre, mine: deckFilters.mine };
+  const sig = aiSig(f);
+  aiQueue = aiQueue.filter(b => Date.now() - b.at < AI_READY_DAYS * 864e5);
+  if (aiRuns.size || aiReady(sig).length >= AI_READY) return;
+  startAiRun(f);
+}
+function startAiRun(f, resumeId) {
+  const run = { sig: aiSig(f) };
+  run.promise = aiSuggestions(f, resumeId).then(list => {
+    aiQueue.push({
+      sig: run.sig, at: Date.now(),
+      titles: list.map(t => ({ ...baseRecord(t, 'want'), votes: t.votes || 0, aiReason: t.aiReason || '' }))
+    });
+    saveAiQueue();
+    aiRuns.delete(run.sig);
+    lsSet('wl.aiPending', null);
+    renderDeckChips();
+    if (aiWanted && deckFilters.mode !== 'ai' && run.sig === aiSig()) {
+      toast('Your picks from Claude are ready', 'Show', () => { switchTab('discover'); setDeckMode('ai'); });
     }
-    return titles;
+    if (!aiWanted || deckFilters.mode !== 'ai') topUpAi();
   }, e => {
-    if (aiRun === run) { aiRun = null; renderDeckChips(); }
+    aiRuns.delete(run.sig);
+    lsSet('wl.aiPending', null);
+    renderDeckChips();
     throw e;
   });
-  // Shown elsewhere when "For you" is on screen; this keeps a background
-  // failure from surfacing as an unhandled rejection.
+  // Shown when "For you" is on screen; a failure in the background is let go.
   run.promise.catch(() => {});
-  aiRun = run;
+  aiRuns.set(run.sig, run);
   renderDeckChips();
   return run;
 }
-async function aiSuggestions(f) {
+// Twenty picks for filters f. With resumeId, collects the answer to a request
+// made before the app was last closed.
+async function aiSuggestions(f, resumeId) {
   const taste = tasteProfile();
   const floor = aiFloors();
   const asks = [];
@@ -2198,7 +2244,10 @@ async function aiSuggestions(f) {
       lean.map(([g, w]) => `${g} (${w < 0.35 ? '1' : '2 or 3'} of 20)`).join(', ') + '.');
   }
   const known = Object.values(items).filter(i => i.status !== 'none').length;
-  const r = await askClaude({
+  // What's made ahead and waiting, so this batch doesn't repeat it.
+  const waiting = aiQueue.flatMap(b => b.titles).slice(0, 80);
+  const r = resumeId ? await waitForJob(resumeId) : await askClaude({
+    onStart: id => lsSet('wl.aiPending', { id, f, at: Date.now() }),
     feature: 'for-you',
     effort: 'medium',
     schema: SUGGEST_SCHEMA,
@@ -2210,6 +2259,7 @@ async function aiSuggestions(f) {
     content: [{
       type: 'text',
       text: (taste || 'They have not rated anything yet. Suggest a varied set of widely loved, recent titles.') +
+        (waiting.length ? `\n\nAlready picked for them and waiting to be shown (don't suggest these again):\n${waiting.map(titleLine).join('\n')}` : '') +
         `\n\nSuggest 20 titles.${asks.length ? ' ' + asks.join(' ') : ''}` +
         (known > 300 ? '\n(Their lists above are trimmed to the most recent entries; they have more.)' : '')
     }],
@@ -3169,7 +3219,7 @@ document.addEventListener('keydown', e => {
 // ── Online / offline ───────────────────────────────────────
 function updateOnline() {
   document.body.classList.toggle('offline', !navigator.onLine);
-  if (navigator.onLine) { syncNow(); if (currentTab === 'discover' && !deck.length) resetDeck(); }
+  if (navigator.onLine) { syncNow(); topUpAi(); if (currentTab === 'discover' && !deck.length) resetDeck(); }
 }
 window.addEventListener('online', updateOnline);
 window.addEventListener('offline', updateOnline);
@@ -3201,6 +3251,8 @@ loadTonightPrefs();
   deckMineSet = typeof f.mine === 'boolean';
   Object.assign(deckFilters, { type: f.type || 'all', genre: f.genre || '', mine: (deckMineSet ? f.mine : true) && prefs.services.length > 0 });
   providerCatalog = lsGet('wl.providerCatalog', null);
+  aiQueue = lsGet('wl.aiQueue', []) || [];
+  aiFilters = lsGet('wl.aiFilters', null);
   $('deck-genre').innerHTML = '<option value="">Any genre</option>' + GENRES.map(g => `<option value="${esc(g[0])}">${esc(g[0])}</option>`).join('');
   $('welcome-form').addEventListener('submit', submitWelcome);
   $('photo-input').addEventListener('change', e => onPhotosChosen(e.target.files));
@@ -3212,8 +3264,12 @@ loadTonightPrefs();
   if (!passcode) { document.body.classList.add('needs-setup'); return; }
   const tab = lsGet('wl.tab', 'discover');
   switchTab(['discover', 'watchlist', 'tonight', 'settings'].includes(tab) ? tab : 'discover');
+  // A "For you" request still running when the app was closed is collected.
+  const pending = lsGet('wl.aiPending', null);
+  if (pending && Date.now() - pending.at < 20 * 60000) startAiRun(pending.f, pending.id);
+  else lsSet('wl.aiPending', null);
   fillDeck();
-  syncNow().then(() => refreshStaleDetails());
+  syncNow().then(() => { refreshStaleDetails(); topUpAi(); });
   resumeImport();
 })();
 </script>
