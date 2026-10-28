@@ -1083,7 +1083,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.7.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 const DETAILS_STALE_MS = 3 * 24 * 3600 * 1000;   // re-check where a title streams every 3 days
 // "For you" keeps titles that clear a floor, or that Claude calls a very strong
@@ -1142,6 +1142,8 @@ const titles = {};
 let deck = [];
 let deckKeys = new Set();
 let deckFilters = { mode: 'trending', type: 'all', genre: '', mine: false };
+// Until the person flips "My services", it's on whenever they've picked some.
+let deckMineSet = false;
 let deckPage = 0;
 let deckLoading = false;
 let deckDone = false;
@@ -1736,7 +1738,8 @@ function setDeckFilter(k, v) {
     return;
   }
   deckFilters[k] = v;
-  lsSet('wl.deckFilters', { type: deckFilters.type, genre: deckFilters.genre, mine: deckFilters.mine });
+  if (k === 'mine') deckMineSet = true;
+  lsSet('wl.deckFilters', { type: deckFilters.type, genre: deckFilters.genre, ...(deckMineSet ? { mine: deckFilters.mine } : {}) });
   resetDeck();
 }
 function resetDeck() {
@@ -2107,7 +2110,7 @@ async function aiSuggestions(f) {
   const asks = [];
   if (f.type !== 'all') asks.push(f.type === 'tv' ? 'Only TV shows.' : 'Only movies.');
   if (f.genre) asks.push(`Only ${f.genre} titles.`);
-  if (f.mine && prefs.services.length) asks.push(`Prefer titles streaming in ${prefs.region} on: ${serviceNames().join(', ')}.`);
+  if (f.mine && prefs.services.length) asks.push(`Only titles streaming in ${prefs.region} with a subscription, free or with ads on: ${serviceNames().join(', ')}.`);
   const lean = tasteLeanings().filter(([g]) => g !== f.genre).slice(0, 6);
   if (lean.length && !f.genre) {
     asks.push('From their swipes they lean away from some genres. Include fewer of these, but never none: ' +
@@ -2877,7 +2880,11 @@ function toggleService(id) {
   savePrefs();
   scheduleSync();
   renderProviderGrid();
-  if (deckFilters.mine) resetDeckSoon();
+  if (!deckMineSet && deckFilters.mine !== prefs.services.length > 0) {
+    deckFilters.mine = prefs.services.length > 0;
+    renderDeckChips();
+    resetDeckSoon();
+  } else if (deckFilters.mine) resetDeckSoon();
 }
 const resetDeckSoon = debounce(() => resetDeck(), 800);
 function setRegion(code) {
@@ -3055,8 +3062,18 @@ loadWlView();
 loadWlFilters();
 loadTonightPrefs();
 (() => {
-  const f = lsGet('wl.deckFilters', null);
-  if (f) Object.assign(deckFilters, { type: f.type || 'all', genre: f.genre || '', mine: !!f.mine && prefs.services.length > 0 });
+  const f = lsGet('wl.deckFilters', null) || {};
+  // Recommendations start on the person's services. Choices saved before that
+  // was the default are dropped once, so both switches start on.
+  if (!lsGet('wl.servicesByDefault', false)) {
+    delete f.mine;
+    lsSet('wl.deckFilters', f);
+    try { localStorage.removeItem('wl.tonightMine'); } catch (e) {}
+    tonightMine = null;
+    lsSet('wl.servicesByDefault', true);
+  }
+  deckMineSet = typeof f.mine === 'boolean';
+  Object.assign(deckFilters, { type: f.type || 'all', genre: f.genre || '', mine: (deckMineSet ? f.mine : true) && prefs.services.length > 0 });
   providerCatalog = lsGet('wl.providerCatalog', null);
   $('deck-genre').innerHTML = '<option value="">Any genre</option>' + GENRES.map(g => `<option value="${esc(g[0])}">${esc(g[0])}</option>`).join('');
   $('welcome-form').addEventListener('submit', submitWelcome);

@@ -79,6 +79,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   with, not in the deck: switching lists leaves it running, and its picks wait
   (dot on the chip, a toast) until "For you" is chosen again with the same
   filters. It isn't kept across a reload.
+- Recommendations default to the person's services: Discover's "My services"
+  (`deckMineSet`) and Tonight's switch (`wl.tonightMine`) are on whenever
+  services are picked, until the person flips them; only a flipped choice is
+  saved.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 
