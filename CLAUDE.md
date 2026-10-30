@@ -45,7 +45,10 @@ The app is a single-file PWA. There is no build step: edit and ship.
   `UsageStore` Durable Object (`/api/usage`, shown in Settings → Usage);
   Claude's cost is estimated from `CLAUDE_PRICES` in `worker.js` (update it
   when prices or the model change) and filed under the `feature` that
-  `askClaude()` passes. A job records its Claude usage once per alarm, not per
+  `askClaude()` passes. Claude stops for the day once that estimate reaches
+  `CLAUDE_DAILY_CAP` ($5): `/api/jobs` answers 429 with `paused: 'claude'`
+  and `retryAfter` (the app stops making "For you" ahead, `claudePausedUntil`),
+  and a running job stops between pieces. A job records its Claude usage once per alarm, not per
   call, to stay inside the 50-requests-per-invocation limit.
   Every `/api/` call is gated by the `X-App-Key` passcode. See `SETUP.md`.
 - Claude jobs: each runs in its own `ClaudeJob` Durable Object, driven by
@@ -96,7 +99,7 @@ The app is a single-file PWA. There is no build step: edit and ship.
   counting `AI_FLOOR_LOVED_WEIGHT` times; RT −3, blended −0.2),
   within `AI_FLOOR_RT` / `AI_FLOOR_SCORE`; until then 80% / 8.0. Claude is
   told the floor; the app enforces it.
-- "For you" is made ahead: `topUpAi()` keeps `AI_READY` (2) batches waiting
+- "For you" is made ahead: `topUpAi()` keeps `AI_READY` (3) batches waiting
   in `aiQueue` (`wl.aiQueue`, kept `AI_READY_DAYS`) for the filters last used
   with "For you" (`wl.aiFilters`), one request at a time, each told what's
   already waiting so it doesn't repeat it. Besides the taste profile, each
