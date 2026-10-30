@@ -68,6 +68,9 @@ const CLAUDE_PRICES = {
   'claude-opus-5': [5, 25, 0.5],
   'claude-opus-4-8': [5, 25, 0.5]
 };
+// Claude's estimated spend stops here each UTC day: no job starts once today's
+// total reaches it, and a long job stops between pieces when it does.
+const CLAUDE_DAILY_CAP = 5;
 const USAGE_FEATURE = /^[a-z-]{1,20}$/;
 const USAGE_KEEP_DAYS = 400;
 
@@ -199,8 +202,7 @@ async function ratings(url, env, ctx) {
     // What was stored, however old, beats nothing.
     if (!scores) scores = stored;
     if (!scores) {
-      const retryAfter = Math.ceil((Date.parse(today + 'T00:00:00Z') + 864e5 - Date.now()) / 1000);
-      return json({ error: "OMDb's daily limit is used up.", paused: refuse, retryAfter }, 429);
+      return json({ error: "OMDb's daily limit is used up.", paused: refuse, retryAfter: secondsToNextUtcDay() }, 429);
     }
   }
   const out = json({ rt: scores.rt, imdb: scores.imdb, mc: scores.mc }, 200, {
@@ -211,6 +213,9 @@ async function ratings(url, env, ctx) {
 }
 
 function utcDay() { return new Date().toISOString().slice(0, 10); }
+function secondsToNextUtcDay() {
+  return Math.ceil((Date.parse(utcDay() + 'T00:00:00Z') + 864e5 - Date.now()) / 1000);
+}
 
 function scoresFresh(s) {
   const recent = !s.year || s.year >= new Date().getUTCFullYear() - 1;
@@ -296,6 +301,15 @@ function claudeUsage(feature, model, u) {
   };
 }
 
+// Today's estimated Claude spend, in dollars, as the usage store has it.
+async function claudeSpentToday(env) {
+  const day = await (await usageStub(env).fetch('https://usage/today')).json();
+  return Object.values(day.claude || {}).reduce((sum, c) => sum + (Number(c.cost) || 0), 0);
+}
+function claudeCapError() {
+  return Object.assign(new Error(`Today's Claude budget of $${CLAUDE_DAILY_CAP.toFixed(2)} is used up. It resets at midnight UTC.`), { retry: false });
+}
+
 // A job: { system, schema, effort, content } for one call, or { …, intro,
 // text } to read a long list in pieces. With resolve set to the name of an
 // array in the answer (e.g. "titles"), each { title, year, type } in it is
@@ -307,6 +321,9 @@ async function startJob(request, env) {
   const req = await request.json();
   const hasContent = Array.isArray(req.content) && req.content.length;
   if (!hasContent && !(typeof req.text === 'string' && req.text.trim())) return json({ error: 'Nothing to send.' }, 400);
+  if (await claudeSpentToday(env) >= CLAUDE_DAILY_CAP) {
+    return json({ error: claudeCapError().message, paused: 'claude', retryAfter: secondsToNextUtcDay() }, 429);
+  }
   const id = crypto.randomUUID();
   const stub = env.CLAUDE_JOBS.get(env.CLAUDE_JOBS.idFromName(id));
   return await stub.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ ...req, id }) });
@@ -418,7 +435,7 @@ export class UsageStore {
         if (k < since) await storage.delete(k);
         else days[k.slice(4)] = v;
       }
-      return json({ today: new Date().toISOString().slice(0, 10), days });
+      return json({ today: new Date().toISOString().slice(0, 10), days, claudeDailyCap: CLAUDE_DAILY_CAP });
     }
     return json({ error: 'Not found.' }, 404);
   }
@@ -577,11 +594,14 @@ export class ClaudeJob {
     }
   }
 
-  // Ask Claude, a piece at a time for a long list (a few at once).
+  // Ask Claude, a piece at a time for a long list (a few at once), stopping
+  // between batches once today's spend reaches CLAUDE_DAILY_CAP.
   async read(job) {
     const answers = [], used = [];
+    const spent = await claudeSpentToday(this.env);
     try {
       for (let i = 0; i < job.keys.length; i += 4) {
+        if (spent + used.reduce((sum, u) => sum + u.cost, 0) >= CLAUDE_DAILY_CAP) throw claudeCapError();
         const batch = [];
         for (let j = i; j < Math.min(job.keys.length, i + 4); j++) {
           const got = await this.ctx.storage.get(job.keys[j]);

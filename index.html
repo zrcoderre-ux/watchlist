@@ -1097,7 +1097,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.10.3';
+const APP_VERSION = '1.11.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -1162,6 +1162,7 @@ let ratingsOff = false;         // the server has no OMDb key, so no critics' sc
 // When the server says OMDb's day is used up (all) or background filling has
 // had its share (background): no asking again until then.
 const ratingsPausedUntil = { all: 0, background: 0 };
+let claudePausedUntil = 0;      // the server's daily Claude cap was reached
 // Titles seen this session that aren't in `items` (deck cards, search results).
 const titles = {};
 
@@ -1367,10 +1368,17 @@ async function tmdb(path, params = {}) {
 // app in the background; this polls until the answer is ready.
 // `feature` files the call's cost under that name in Settings → Usage.
 async function askClaude({ system, content, schema, effort = 'medium', intro, text, resolve, feature, onStart, onProgress }) {
-  const { id } = await api('/api/jobs', {
-    method: 'POST',
-    body: JSON.stringify({ system, content, schema, effort, intro, text, resolve, feature })
-  });
+  let id;
+  try {
+    ({ id } = await api('/api/jobs', {
+      method: 'POST',
+      body: JSON.stringify({ system, content, schema, effort, intro, text, resolve, feature })
+    }));
+  } catch (e) {
+    // Past the day's cap, making "For you" ahead waits for the next UTC day.
+    if (e.status === 429 && e.data.paused === 'claude') claudePausedUntil = Date.now() + (e.data.retryAfter || 3600) * 1000;
+    throw e;
+  }
   if (onStart) onStart(id);
   return waitForJob(id, onProgress);
 }
@@ -1691,7 +1699,7 @@ const TASTE_WINDOW = 500;       // most recent decisions considered
 // Each page of Trending, Top rated and New is reordered: best reviewed first,
 // nudged by taste (this many review points per unit of a title's genre pull).
 const DECK_TASTE_PULL = 0.5;
-const AI_READY = 2;             // "For you" batches kept made ahead
+const AI_READY = 3;             // "For you" batches kept made ahead
 const AI_READY_DAYS = 3;        // and how long one keeps
 const DECK_REVIEW_PRIOR = 6.5;  // what TMDB's rating is pulled toward on few votes
 // No list recommends a panned title: Rotten on Rotten Tomatoes where it has a
@@ -2220,7 +2228,7 @@ function takeAiBatch(sig) {
 // one request at a time: each is told what's already waiting, so it doesn't
 // repeat it. Changing filters on the other lists doesn't spend anything.
 function topUpAi() {
-  if (!passcode || !navigator.onLine) return;
+  if (!passcode || !navigator.onLine || Date.now() < claudePausedUntil) return;
   const f = aiFilters || { type: deckFilters.type, genre: deckFilters.genre, mine: deckFilters.mine };
   const sig = aiSig(f);
   aiQueue = aiQueue.filter(b => Date.now() - b.at < AI_READY_DAYS * 864e5);
@@ -3048,7 +3056,8 @@ async function renderUsage() {
     ${row('This app, estimated', `${usd(monthCost)} of ${usd(CLAUDE_MONTHLY_CREDIT)}`)}
     ${bar(monthCost / CLAUDE_MONTHLY_CREDIT, 0.8)}
     ${features || row('No calls yet', '')}
-    ${row('Today', usd(todayCost))}
+    ${u.claudeDailyCap ? row('Today', `${usd(todayCost)} of ${usd(u.claudeDailyCap)}`) + bar(todayCost / u.claudeDailyCap, 0.8) : row('Today', usd(todayCost))}
+    ${u.claudeDailyCap ? `<div class="small muted">Claude stops for the day at ${usd(u.claudeDailyCap)} and starts again at midnight UTC.</div>` : ''}
     <div class="small muted">Estimated from Anthropic's list prices. Your credit is shared with your other app, so the Anthropic Console's usage page has the true total.</div>
     <div class="sec-title" style="margin:6px 0 0">Today</div>
     ${row('OMDb lookups', `${today.omdb.toLocaleString()} of ${OMDB_DAILY_LIMIT.toLocaleString()}`)}
