@@ -122,6 +122,11 @@ The app is a single-file PWA. There is no build step: edit and ship.
   on them: it relaid the whole list on every scroll frame and made scrolling slow.
   Cards-view slides use `contain: content` too, and no `backdrop-filter`
   (badges use `--poster-chip-flat`): a blur per slide made swiping crawl on iPhone.
+- In list view on To watch, swiping a row left marks it watched
+  (`wlSwipe*`, pointer events on `#wl-body`, rows `touch-action: pan-y`):
+  the row's `.wl-row-in` slides over a "Watched" strip, then the same rate
+  sheet as Discover's swipe up opens; closing it unrated slides the row back.
+  Row markup is `<button class="wl-row"><span class="wl-row-in">…`.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 
