@@ -516,8 +516,10 @@ textarea.text-input:focus { padding: 11px 15px; }
 #screen-watchlist:not(.cards) #wl-add-top { display: none; }
 .wl-list { padding: 0 8px 96px; display: flex; flex-direction: column; }
 .wl-row {
-  display: flex; gap: 14px; align-items: center;
-  padding: 8px;
+  display: block; position: relative;
+  padding: 0;
+  /* Vertical pans scroll the list; a sideways drag is the swipe. */
+  touch-action: pan-y;
   /* Each row is laid out and painted on its own, so a poster loading or a
      score arriving redraws that row, not the list. Not content-visibility:
      rows flipping in and out of view relaid the whole list every scroll frame. */
@@ -526,6 +528,18 @@ textarea.text-input:focus { padding: 11px 15px; }
   border: none; background-color: transparent;
   text-align: left; width: 100%;
 }
+.wl-row-in { position: relative; display: flex; gap: 14px; align-items: center; padding: 8px; border-radius: inherit; }
+.wl-row-in.settle { transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1); }
+/* Swiping left (To watch): the row slides over a "Watched" strip. */
+.wl-row.swiping { background-color: var(--success-container); color: var(--on-success-container); }
+.wl-row.swiping .wl-row-in { background-color: var(--bg); color: var(--on-surface); }
+.wl-row-act {
+  position: absolute; top: 0; bottom: 0; right: 20px;
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 500; opacity: 0.6;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.wl-row.armed .wl-row-act { opacity: 1; transform: scale(1.08); }
 .wl-row .thumb, .result-row .thumb {
   width: 56px; height: 84px;
   border-radius: var(--r-sm);
@@ -1105,7 +1119,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.11.2';
+const APP_VERSION = '1.12.0';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
@@ -2405,8 +2419,8 @@ function miniProvs(key) {
 // One row of the list view and one slide of the cards view, so a background
 // update can redraw just that title (see wlTouch).
 function wlRowInner(i) {
-  return `
-      ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="" loading="lazy" decoding="async">` : '<span class="thumb"></span>'}
+  return `<span class="wl-row-in">
+      ${i.poster ? `<img class="thumb" src="${imgUrl(i.poster, 'w185')}" alt="" loading="lazy" decoding="async" draggable="false">` : '<span class="thumb"></span>'}
       <span class="txt">
         <span class="t">${esc(i.title)}</span>
         <span class="m">${esc(metaLine(i))}${i.vote ? ' · ★ ' + Number(i.vote).toFixed(1) : ''}</span>
@@ -2415,7 +2429,7 @@ function wlRowInner(i) {
         ${miniProvs(i.key)}
       </span>
       ${ratingIcon(i.myRating)}
-`;
+    </span>`;
 }
 function wlSlideInner(i) {
   return `
@@ -2445,7 +2459,9 @@ const flushWlTouched = debounce(() => {
     const i = items[k];
     if (!i) continue;
     const row = document.querySelector(`#wl-body .wl-row[data-key="${CSS.escape(k)}"]`);
-    if (row) row.innerHTML = wlRowInner(i);
+    // A row under a swiping finger is redrawn once it's let go.
+    if (row && row.classList.contains('swiping')) { wlTouched.add(k); flushWlTouched(); }
+    else if (row) row.innerHTML = wlRowInner(i);
     const slide = document.querySelector(`#wl-body .wl-slide[data-key="${CSS.escape(k)}"]`);
     if (slide) slide.innerHTML = wlSlideInner(i);
   }
@@ -2454,7 +2470,7 @@ function wlTouch(key) { wlTouched.add(key); flushWlTouched(); }
 let wlIdleTimer = null;
 function renderWatchlistWhenIdle() {
   clearTimeout(wlIdleTimer);
-  const wait = wlScrolledAt + 800 - Date.now();
+  const wait = document.querySelector('#wl-body .wl-row.swiping') ? 400 : wlScrolledAt + 800 - Date.now();
   if (wait > 0) { wlIdleTimer = setTimeout(renderWatchlistWhenIdle, wait); return; }
   wlIdleTimer = null;
   if (currentTab === 'watchlist') renderWatchlist();
@@ -2510,6 +2526,75 @@ function renderWatchlist() {
   body.className = 'wl-body scroll';
   body.innerHTML = note + `<div class="wl-list">${list.map(i => `
     <button class="wl-row" data-key="${esc(i.key)}" onclick="openDetail('${esc(i.key)}')">${wlRowInner(i)}</button>`).join('')}</div>`;
+}
+
+// Swipe a row left to mark it watched (list view, To watch). The row follows
+// the finger over a "Watched" strip; let go past 40% of its width, or flick,
+// and it slides off and asks how it was, as Discover's swipe up does.
+// Closing that sheet unrated slides the row back.
+let wlSwipe = null;
+let wlSwipedAt = 0;
+function wlSwipeStart(e) {
+  if (wlView !== 'list' || wlFilters.status !== 'want' || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const row = e.target.closest('.wl-row');
+  if (!row || row.classList.contains('swiping')) return;
+  wlSwipe = { row, key: row.dataset.key, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, on: false, lastX: e.clientX, lastT: e.timeStamp, v: 0 };
+}
+function wlSwipeArmed(s) { return -s.dx > s.w * 0.4 || (-s.dx > 48 && s.v < -0.5); }
+function wlSwipeMove(e) {
+  const s = wlSwipe;
+  if (!s || e.pointerId !== s.id) return;
+  const dx = e.clientX - s.x0, dy = e.clientY - s.y0;
+  if (!s.on) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { wlSwipe = null; return; }
+    if (dx > -10 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    s.inner = s.row.querySelector('.wl-row-in');
+    if (!s.inner) { wlSwipe = null; return; }
+    s.on = true;
+    s.w = s.row.offsetWidth;
+    s.row.classList.add('swiping');
+    s.row.insertAdjacentHTML('afterbegin', `<span class="wl-row-act" aria-hidden="true">${icon('check')}Watched</span>`);
+    try { s.row.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+  const dt = e.timeStamp - s.lastT;
+  if (dt > 0) s.v = (e.clientX - s.lastX) / dt;
+  s.lastX = e.clientX; s.lastT = e.timeStamp;
+  s.dx = Math.min(0, dx);
+  s.inner.style.transform = `translateX(${s.dx}px)`;
+  s.row.classList.toggle('armed', wlSwipeArmed(s));
+}
+function wlSwipeEnd(e) {
+  const s = wlSwipe;
+  if (!s || e.pointerId !== s.id) return;
+  wlSwipe = null;
+  if (!s.on) return;
+  wlSwipedAt = Date.now();
+  if (e.type === 'pointerup' && wlSwipeArmed(s)) wlSwipeCommit(s);
+  else wlSwipeBack(s);
+}
+function wlSwipeBack(s) {
+  s.inner.classList.add('settle');
+  s.inner.style.transform = '';
+  s.row.classList.remove('armed');
+  setTimeout(() => {
+    s.row.classList.remove('swiping');
+    s.inner.classList.remove('settle');
+    const a = s.row.querySelector('.wl-row-act');
+    if (a) a.remove();
+  }, 230);
+}
+function wlSwipeCommit(s) {
+  const t = items[s.key];
+  if (!t) { wlSwipeBack(s); return; }
+  s.inner.classList.add('settle');
+  s.inner.style.transform = `translateX(${-s.w}px)`;
+  try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
+  setTimeout(() => openRateSheet(t, rating => {
+    const prev = JSON.parse(JSON.stringify(items[s.key]));
+    setItem(t, { status: 'watched', myRating: rating });
+    renderCurrent();
+    toast('Marked watched: ' + ratingLabel(rating).toLowerCase(), 'Undo', () => { setItem(t, { ...prev }); renderCurrent(); });
+  }, () => wlSwipeBack(s)), 220);
 }
 
 // ── Title detail ───────────────────────────────────────────
@@ -3350,6 +3435,14 @@ loadTonightPrefs();
   $('file-input').addEventListener('change', e => onListFileChosen(e.target.files[0]));
   $('backup-input').addEventListener('change', e => e.target.files[0] && restoreBackup(e.target.files[0]));
   $('wl-body').addEventListener('scroll', () => { wlScrolledAt = Date.now(); }, { passive: true, capture: true });
+  $('wl-body').addEventListener('pointerdown', wlSwipeStart);
+  $('wl-body').addEventListener('pointermove', wlSwipeMove);
+  $('wl-body').addEventListener('pointerup', wlSwipeEnd);
+  $('wl-body').addEventListener('pointercancel', wlSwipeEnd);
+  // The tap that ends a swipe doesn't also open the title.
+  $('wl-body').addEventListener('click', e => {
+    if (Date.now() - wlSwipedAt < 400 && e.target.closest('.wl-row')) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
   document.body.classList.toggle('offline', !navigator.onLine);
   refreshCounts();
   renderDeckChips();
