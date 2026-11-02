@@ -120,6 +120,8 @@ The app is a single-file PWA. There is no build step: edit and ship.
   rebuild waits for scrolling to stop. Rows use `contain: content` so a
   poster or score redraws only that row. Don't use `content-visibility: auto`
   on them: it relaid the whole list on every scroll frame and made scrolling slow.
+  Cards-view slides use `contain: content` too, and no `backdrop-filter`
+  (badges use `--poster-chip-flat`): a blur per slide made swiping crawl on iPhone.
 - One person, one list: plain `localStorage` keys prefixed `wl.`. Wrap every
   access in try/catch (`lsGet` / `lsSet`) — Safari private mode throws.
 
