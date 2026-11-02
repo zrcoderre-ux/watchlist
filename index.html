@@ -516,9 +516,10 @@ textarea.text-input:focus { padding: 11px 15px; }
 .wl-row {
   display: flex; gap: 14px; align-items: center;
   padding: 8px;
-  /* A long list: rows off screen aren't laid out or painted until near. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 100px;
+  /* Each row is laid out and painted on its own, so a poster loading or a
+     score arriving redraws that row, not the list. Not content-visibility:
+     rows flipping in and out of view relaid the whole list every scroll frame. */
+  contain: content;
   border-radius: var(--r-lg);
   border: none; background-color: transparent;
   text-align: left; width: 100%;
@@ -1097,7 +1098,7 @@ body.tab-discover .toast { bottom: calc(var(--nav-h) + 96px + env(safe-area-inse
 'use strict';
 
 // ── Config ─────────────────────────────────────────────────
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.11.1';
 const IMG = 'https://image.tmdb.org/t/p/';
 // Settings → Usage measures Claude's estimated spend against this monthly API
 // credit (shared with another app, whose use isn't seen here), and OMDb
